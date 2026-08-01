@@ -1,10 +1,13 @@
 <!DOCTYPE html>
 <!--
   ARCHIVO: index.html
-  VERSIÓN: v0.2
+  VERSIÓN: v0.3
   FECHA: 01/08/2026
   PROYECTO: RavenMarket — App Cliente (marketplace público) | RavenTechs
   CHANGELOG:
+  - v0.3 (01/08/2026): Modal de bienvenida al primer ingreso pidiendo activar ubicación.
+    Se muestra solo una vez (localStorage rm_loc_preguntado). Si acepta, activa GPS y
+    recarga el ranking. Si omite, entra directo al catálogo sin GPS.
   - v0.2 (01/08/2026): Conexión Firebase. Login con Google al confirmar el pedido, pedidos
     registrados en Firestore, historial del cliente desde la nube, ubicación GPS opcional
     incluida en el pedido (link de Google Maps en el WhatsApp). Fallback demo automático si
@@ -122,6 +125,21 @@
   </div>
 </div>
 
+<!-- Modal bienvenida / ubicación (primera visita) -->
+<div class="modal-fondo" id="modalBienvenida">
+  <div class="modal" style="text-align:center">
+    <div style="font-size:44px;margin-bottom:10px">📍</div>
+    <h3 style="margin-bottom:8px">¿Desde dónde pedís?</h3>
+    <p style="font-size:14px;color:var(--c-suave);margin-bottom:20px">
+      Activá tu ubicación y te mostramos primero las empresas más cercanas a vos.
+    </p>
+    <button class="btn-principal" id="btnMvUbicacion" style="width:100%;margin-bottom:10px">
+      📍 Activar mi ubicación
+    </button>
+    <button class="btn-sec" id="btnMvSaltar">Ahora no, ver todas las empresas</button>
+  </div>
+</div>
+
 <!-- Nav inferior -->
 <nav class="nav-inferior">
   <button data-ir="vInicio" class="activo" id="navInicio"><span class="ni">🏠</span>Inicio</button>
@@ -170,6 +188,33 @@
     var primeraCat = datos.categorias[0];
     if (primeraCat) $('brandLogo').textContent = primeraCat.icono;
     pintarCategorias();
+    mostrarModalUbicacion();
+  });
+
+  /* ---------- Modal de ubicación (primera visita) ---------- */
+  function mostrarModalUbicacion() {
+    if (localStorage.getItem('rm_loc_preguntado')) return;
+    if (!navigator.geolocation) return;
+    $('modalBienvenida').classList.add('abierto');
+  }
+
+  $('btnMvUbicacion').addEventListener('click', function () {
+    localStorage.setItem('rm_loc_preguntado', '1');
+    $('modalBienvenida').classList.remove('abierto');
+    $('btnMvUbicacion').textContent = '📍 Obteniendo ubicación…';
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      userGeo = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      $('btnUbicacion').textContent = '✅ Ubicación activada — ordenamos por cercanía';
+      // Si hay una categoría activa, refresca el ranking con la ubicación nueva
+      if (catActual) abrirCategoria(catActual.id);
+    }, function () {
+      $('btnUbicacion').textContent = '📍 Usar mi ubicación para ordenar por cercanía';
+    });
+  });
+
+  $('btnMvSaltar').addEventListener('click', function () {
+    localStorage.setItem('rm_loc_preguntado', '1');
+    $('modalBienvenida').classList.remove('abierto');
   });
 
   /* ---------- Sesión ---------- */
