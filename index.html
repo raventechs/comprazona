@@ -1,7 +1,14 @@
 <!DOCTYPE html>
 <!--
   ARCHIVO: index.html
-  VERSIÓN: v0.7
+  VERSIÓN: v0.8
+  FECHA: 01/08/2026
+  PROYECTO: CompraZona — App Cliente | RavenTechs
+  CHANGELOG:
+  - v0.8 (01/08/2026): Modal de confirmación antes de enviar el pedido. El cliente ve
+    el resumen completo (empresa, productos, total, dirección) y confirma antes de que
+    se abra WhatsApp y se registre en Firestore.
+  - v0.7 (01/08/2026): Seguridad XSS, App Check SDK.
   FECHA: 01/08/2026
   PROYECTO: RavenMarket — App Cliente (marketplace público) | RavenTechs
   CHANGELOG:
@@ -325,6 +332,29 @@
       <div class="t2" id="carritoTotal"></div>
     </div>
     <button class="btn-principal" id="btnIrConfirmar">Pedir</button>
+  </div>
+</div>
+
+<!-- Modal confirmación del pedido -->
+<div class="modal-fondo" id="modalConfirmar">
+  <div class="modal">
+    <h3 style="margin-bottom:4px">¿Confirmás el pedido?</h3>
+    <p style="font-size:13px;color:var(--c-suave);margin-bottom:14px" id="mcEmpresa"></p>
+    <div id="mcItems" style="margin-bottom:14px"></div>
+    <div style="background:var(--c-fondo);border-radius:12px;padding:14px;margin-bottom:14px">
+      <div style="font-size:13px;color:var(--c-suave);margin-bottom:4px">📍 Entrega en</div>
+      <div id="mcDireccion" style="font-weight:700;font-size:14.5px"></div>
+      <div id="mcNota" style="font-size:13px;color:var(--c-suave);margin-top:4px"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;
+                border-top:1.5px solid var(--c-borde);padding-top:12px;margin-bottom:16px">
+      <span style="font-size:14px;color:var(--c-suave);font-weight:600">Total</span>
+      <span id="mcTotal" style="font-size:22px;font-weight:800;color:var(--c-primario)"></span>
+    </div>
+    <button class="btn-principal" id="btnConfirmarPedido" style="width:100%;margin-bottom:10px;font-size:16px">
+      Sí, enviar pedido ✓
+    </button>
+    <button class="btn-sec" id="btnRevisarPedido">Volver a revisar</button>
   </div>
 </div>
 
@@ -658,14 +688,43 @@
     }
   }
 
-  /* ---------- Enviar pedido ---------- */
+  /* ---------- Enviar pedido: primero confirmación, luego envío real ---------- */
   $('btnEnviar').addEventListener('click', function () {
-    if (esModoNube() && !usuario) {
-      mostrarLoginGoogle();
-      return;
-    }
+    if (esModoNube() && !usuario) { mostrarLoginGoogle(); return; }
     var dir = $('inpDireccion').value.trim();
     if (!dir) { alert('Completá la dirección de entrega.'); $('inpDireccion').focus(); return; }
+
+    // Mostrar modal de confirmación con resumen completo
+    var t = totalesCarrito();
+    var itemsHtml = '<div style="border:1.5px solid var(--c-borde);border-radius:12px;overflow:hidden">';
+    Object.keys(carrito).forEach(function (k, i) {
+      var it = carrito[k];
+      itemsHtml += '<div style="display:flex;justify-content:space-between;padding:10px 14px;' +
+        (i > 0 ? 'border-top:1px solid var(--c-borde)' : '') + '">' +
+        '<span style="font-size:14px">' + it.cant + ' × ' + RM.sanitizar(it.prod.nombre) + '</span>' +
+        '<span style="font-weight:700">' + RM.formatPesos(it.prod.precio * it.cant) + '</span></div>';
+    });
+    itemsHtml += '</div>';
+    $('mcEmpresa').textContent = '🏪 ' + empActual.nombre;
+    $('mcItems').innerHTML = itemsHtml;
+    $('mcDireccion').textContent = dir;
+    var nota = $('inpNota').value.trim();
+    $('mcNota').textContent = nota ? '📝 ' + nota : '';
+    $('mcTotal').textContent = RM.formatPesos(t.total);
+    $('modalConfirmar').classList.add('abierto');
+  });
+
+  $('btnRevisarPedido').addEventListener('click', function () {
+    $('modalConfirmar').classList.remove('abierto');
+  });
+
+  $('btnConfirmarPedido').addEventListener('click', function () {
+    $('modalConfirmar').classList.remove('abierto');
+    ejecutarEnvioPedido();
+  });
+
+  function ejecutarEnvioPedido() {
+    var dir = $('inpDireccion').value.trim();
     var tel = $('inpTelefono').value.trim();
     localStorage.setItem('rm_direccion', dir);
     localStorage.setItem('rm_telefono', tel);
@@ -713,7 +772,7 @@
       localStorage.setItem('rm_historial', JSON.stringify(hist.slice(0, 50)));
       terminar();
     }
-  });
+  }
 
   $('btnCerrarModal').addEventListener('click', function () {
     $('modalFondo').classList.remove('abierto');
