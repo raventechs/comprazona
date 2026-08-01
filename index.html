@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <!--
   ARCHIVO: index.html
-  VERSIÓN: v0.5
+  VERSIÓN: v0.6
   FECHA: 01/08/2026
   PROYECTO: RavenMarket — App Cliente (marketplace público) | RavenTechs
   CHANGELOG:
+  - v0.6 (01/08/2026): Renombrado CompraZona. Carrito SVG animado en header y splash. Tono de texto revisado.
   - v0.5 (01/08/2026): Login con Google por REDIRECT (no popup). El usuario va a la página
     de Google y vuelve solo — sin ventana emergente. Tarjeta suave de ubicación que aparece
     sola a los 2 segundos, no bloquea nada y desaparece si la ignoran. Notificaciones
@@ -20,7 +21,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>RavenMarket</title>
+<title>CompraZona</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -60,11 +61,11 @@
 <div id="cardUbi" style="display:none">
   <div class="ico">📍</div>
   <div class="txt">
-    <div class="t1">¿Usamos tu ubicación?</div>
+    <div class="t1">¿Compartís tu ubicación?</div>
     <div class="t2">Te mostramos las empresas más cerquita de tu casa</div>
   </div>
   <div class="acciones">
-    <button class="ubi-si" id="btnUbiSi">Sí, dale</button>
+    <button class="ubi-si" id="btnUbiSi">Sí, activar</button>
     <button class="ubi-no" id="btnUbiNo">Ahora no</button>
   </div>
 </div>
@@ -72,27 +73,180 @@
 <!-- Pantalla pre-redirect Google (explica qué va a pasar) -->
 <div id="pantallaLogin" style="display:none">
   <div class="ico">👤</div>
-  <h2>Un toque más y podés pedir</h2>
-  <p>Necesitamos saber quién sos para guardar tu pedido.<br>Usamos tu cuenta de Google — la misma que usás en YouTube o Gmail.</p>
+  <h2>Para continuar, ingresá con Google</h2>
+  <p>Usamos tu cuenta de Google para registrar el pedido y guardar tu historial.</p>
   <div class="pasos">
-    <div class="paso"><div class="n">1</div><span>Tocás el botón de abajo</span></div>
-    <div class="paso"><div class="n">2</div><span>Se abre la página de Google (conocida)</span></div>
-    <div class="paso"><div class="n">3</div><span>Elegís tu cuenta y volvés solo acá</span></div>
+    <div class="paso"><div class="n">1</div><span>Tocás el botón</span></div>
+    <div class="paso"><div class="n">2</div><span>Se abre la página de Google</span></div>
+    <div class="paso"><div class="n">3</div><span>Elegís tu cuenta y volvés a la app</span></div>
   </div>
   <button class="btn-principal" id="btnIrGoogle" style="width:100%;max-width:380px;font-size:17px;padding:17px">
-    Ingresar con Google →
+    Ingresar con Google
   </button>
-  <button class="bv-skip" id="btnLoginCancelar" style="margin-top:14px;font-size:13.5px;color:var(--c-suave);background:none;border:none;cursor:pointer">Volver al catálogo</button>
+  <button class="bv-skip" id="btnLoginCancelar" style="margin-top:14px;font-size:13.5px;color:var(--c-suave);background:none;border:none;cursor:pointer">Cancelar</button>
 </div>
 
-<div class="demo-banner" id="demoBanner" style="display:none">MODO DEMO — datos de ejemplo</div>
+<div class="carrito-splash" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 90" id="carritoSVG">
+  <defs>
+    <style>
+      /* ---- Ruedas: giran siempre ---- */
+      .rueda-izq { transform-box:fill-box; transform-origin:center;
+                   animation: girar 0.6s linear infinite; }
+      .rueda-der { transform-box:fill-box; transform-origin:center;
+                   animation: girar 0.6s linear infinite; }
+      @keyframes girar {
+        from { transform: rotate(0deg); }
+        to   { transform: rotate(360deg); }
+      }
+
+      /* ---- Header: carrito oscila suave izq-der ---- */
+      .carrito-header #carritoSVG {
+        animation: oscilar 1.6s ease-in-out infinite;
+        transform-origin: 50% 90%;
+      }
+      @keyframes oscilar {
+        0%,100% { transform: translateX(0px);   }
+        25%      { transform: translateX(5px);   }
+        75%      { transform: translateX(-5px);  }
+      }
+
+      /* ---- Splash: rueda de izq a der y vuelve ---- */
+      .carrito-splash #carritoSVG {
+        animation: rodar 2.2s ease-in-out infinite;
+      }
+      @keyframes rodar {
+        0%    { transform: translateX(-10px); }
+        45%   { transform: translateX(10px);  }
+        55%   { transform: translateX(10px);  }
+        100%  { transform: translateX(-10px); }
+      }
+    </style>
+  </defs>
+
+  
+  <path d="M 62 8 Q 80 8 80 26" stroke="#F27B13" fill="none"
+        stroke-width="5" stroke-linecap="round"/>
+
+  
+  <rect x="12" y="22" width="58" height="36" rx="5" fill="#F27B13"/>
+
+  
+  <line x1="12" y1="34" x2="70" y2="34" stroke="white" stroke-width="1.8" opacity="0.45"/>
+  <line x1="12" y1="46" x2="70" y2="46" stroke="white" stroke-width="1.8" opacity="0.45"/>
+
+  
+  <line x1="31" y1="22" x2="31" y2="58" stroke="white" stroke-width="1.8" opacity="0.45"/>
+  <line x1="51" y1="22" x2="51" y2="58" stroke="white" stroke-width="1.8" opacity="0.45"/>
+
+  
+  <rect x="9" y="56" width="64" height="6" rx="3" fill="#C9610A"/>
+
+  
+  <g class="rueda-izq">
+    <circle cx="26" cy="72" r="11" fill="#26221D"/>
+    <circle cx="26" cy="72" r="7"  fill="#4A4541"/>
+    <circle cx="26" cy="72" r="2.5" fill="#26221D"/>
+    <line x1="26" y1="61" x2="26" y2="83" stroke="#888" stroke-width="2"/>
+    <line x1="15" y1="72" x2="37" y2="72" stroke="#888" stroke-width="2"/>
+    <line x1="18" y1="64" x2="34" y2="80" stroke="#888" stroke-width="1.5"/>
+    <line x1="34" y1="64" x2="18" y2="80" stroke="#888" stroke-width="1.5"/>
+  </g>
+
+  
+  <g class="rueda-der">
+    <circle cx="62" cy="72" r="11" fill="#26221D"/>
+    <circle cx="62" cy="72" r="7"  fill="#4A4541"/>
+    <circle cx="62" cy="72" r="2.5" fill="#26221D"/>
+    <line x1="62" y1="61" x2="62" y2="83" stroke="#888" stroke-width="2"/>
+    <line x1="51" y1="72" x2="73" y2="72" stroke="#888" stroke-width="2"/>
+    <line x1="54" y1="64" x2="70" y2="80" stroke="#888" stroke-width="1.5"/>
+    <line x1="70" y1="64" x2="54" y2="80" stroke="#888" stroke-width="1.5"/>
+  </g>
+</svg></div>
+<div class="demo-banner" id="demoBanner" style="display:none">Vista de demostración — datos de ejemplo</div>
 
 <header class="app">
   <div class="fila-header">
     <div class="brand">
       <div class="logo" id="brandLogo">🔥</div>
       <div>
-        <h1 id="brandNombre">Cargando…</h1>
+        <div class="carrito-wrap"><span class="carrito-header" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 90" id="carritoSVG">
+  <defs>
+    <style>
+      /* ---- Ruedas: giran siempre ---- */
+      .rueda-izq { transform-box:fill-box; transform-origin:center;
+                   animation: girar 0.6s linear infinite; }
+      .rueda-der { transform-box:fill-box; transform-origin:center;
+                   animation: girar 0.6s linear infinite; }
+      @keyframes girar {
+        from { transform: rotate(0deg); }
+        to   { transform: rotate(360deg); }
+      }
+
+      /* ---- Header: carrito oscila suave izq-der ---- */
+      .carrito-header #carritoSVG {
+        animation: oscilar 1.6s ease-in-out infinite;
+        transform-origin: 50% 90%;
+      }
+      @keyframes oscilar {
+        0%,100% { transform: translateX(0px);   }
+        25%      { transform: translateX(5px);   }
+        75%      { transform: translateX(-5px);  }
+      }
+
+      /* ---- Splash: rueda de izq a der y vuelve ---- */
+      .carrito-splash #carritoSVG {
+        animation: rodar 2.2s ease-in-out infinite;
+      }
+      @keyframes rodar {
+        0%    { transform: translateX(-10px); }
+        45%   { transform: translateX(10px);  }
+        55%   { transform: translateX(10px);  }
+        100%  { transform: translateX(-10px); }
+      }
+    </style>
+  </defs>
+
+  
+  <path d="M 62 8 Q 80 8 80 26" stroke="#F27B13" fill="none"
+        stroke-width="5" stroke-linecap="round"/>
+
+  
+  <rect x="12" y="22" width="58" height="36" rx="5" fill="#F27B13"/>
+
+  
+  <line x1="12" y1="34" x2="70" y2="34" stroke="white" stroke-width="1.8" opacity="0.45"/>
+  <line x1="12" y1="46" x2="70" y2="46" stroke="white" stroke-width="1.8" opacity="0.45"/>
+
+  
+  <line x1="31" y1="22" x2="31" y2="58" stroke="white" stroke-width="1.8" opacity="0.45"/>
+  <line x1="51" y1="22" x2="51" y2="58" stroke="white" stroke-width="1.8" opacity="0.45"/>
+
+  
+  <rect x="9" y="56" width="64" height="6" rx="3" fill="#C9610A"/>
+
+  
+  <g class="rueda-izq">
+    <circle cx="26" cy="72" r="11" fill="#26221D"/>
+    <circle cx="26" cy="72" r="7"  fill="#4A4541"/>
+    <circle cx="26" cy="72" r="2.5" fill="#26221D"/>
+    <line x1="26" y1="61" x2="26" y2="83" stroke="#888" stroke-width="2"/>
+    <line x1="15" y1="72" x2="37" y2="72" stroke="#888" stroke-width="2"/>
+    <line x1="18" y1="64" x2="34" y2="80" stroke="#888" stroke-width="1.5"/>
+    <line x1="34" y1="64" x2="18" y2="80" stroke="#888" stroke-width="1.5"/>
+  </g>
+
+  
+  <g class="rueda-der">
+    <circle cx="62" cy="72" r="11" fill="#26221D"/>
+    <circle cx="62" cy="72" r="7"  fill="#4A4541"/>
+    <circle cx="62" cy="72" r="2.5" fill="#26221D"/>
+    <line x1="62" y1="61" x2="62" y2="83" stroke="#888" stroke-width="2"/>
+    <line x1="51" y1="72" x2="73" y2="72" stroke="#888" stroke-width="2"/>
+    <line x1="54" y1="64" x2="70" y2="80" stroke="#888" stroke-width="1.5"/>
+    <line x1="70" y1="64" x2="54" y2="80" stroke="#888" stroke-width="1.5"/>
+  </g>
+</svg></span><h1 id="brandNombre">CompraZona</h1></div>
         <div class="lema" id="brandLema"></div>
       </div>
     </div>
@@ -111,7 +265,7 @@
     </div>
     <div class="seccion-titulo">Categorías</div>
     <div class="cat-grid" id="catGrid"></div>
-    <button class="btn-sec" id="btnUbicacion">📍 Usar mi ubicación para ordenar por cercanía</button>
+    <button class="btn-sec" id="btnUbicacion">📍 Activar mi ubicación</button>
   </div>
 
   <!-- ========== VISTA EMPRESAS ========== -->
@@ -178,7 +332,7 @@
 <div class="modal-fondo" id="modalFondo">
   <div class="modal">
     <h3 id="modalTitulo">✅ Pedido registrado</h3>
-    <p style="font-size:13.5px;color:var(--c-suave)">Este es el mensaje que recibe la empresa:</p>
+    <p style="font-size:13.5px;color:var(--c-suave)">Mensaje que recibe la empresa:</p>
     <div class="wa-preview" id="waPreview"></div>
     <a class="btn-principal" id="btnWa" style="display:block;text-align:center;text-decoration:none" target="_blank" rel="noopener">Abrir WhatsApp</a>
     <button class="btn-sec" id="btnCerrarModal">Cerrar</button>
@@ -347,7 +501,7 @@
     if (!q.trim()) return;
     var cat = RM.buscarCategoria(q, DATOS.categorias);
     if (cat) { abrirCategoria(cat.id); }
-    else { alert('No encontramos esa categoría todavía. Probá con "garrafa" o "agua".'); }
+    else { alert('No encontramos esa categoría. Probá escribir "garrafa" o "agua".'); }
   }
   $('btnBuscar').addEventListener('click', buscar);
   $('inpBuscar').addEventListener('keydown', function (e) { if (e.key === 'Enter') buscar(); });
@@ -360,7 +514,7 @@
       userGeo = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       $('btnUbicacion').textContent = '✅ Ubicación activada — ordenamos por cercanía';
     }, function () {
-      $('btnUbicacion').textContent = '📍 Usar mi ubicación para ordenar por cercanía';
+      $('btnUbicacion').textContent = '📍 Activar mi ubicación';
       alert('No pudimos obtener tu ubicación.');
     });
   });
@@ -370,10 +524,10 @@
     catActual = null;
     DATOS.categorias.forEach(function (c) { if (c.id === catId) catActual = c; });
     if (!catActual) return;
-    $('tituloEmpresas').textContent = catActual.icono + ' ' + catActual.nombre + ' — empresas de tu zona';
+    $('tituloEmpresas').textContent = catActual.icono + ' ' + catActual.nombre + ' — empresas disponibles';
     var ranking = RM.rankear(DATOS.empresas, catId, DATOS.productos, DATOS.tenant.scoring, userGeo);
     var html = '';
-    if (!ranking.length) html = '<div class="vacio"><span class="ico">🔍</span>Todavía no hay empresas en esta categoría.</div>';
+    if (!ranking.length) html = '<div class="vacio"><span class="ico">🔍</span>No hay empresas en esta categoría todavía.</div>';
     ranking.forEach(function (r) {
       var badges = '';
       r.badges.forEach(function (b, idx) {
@@ -510,7 +664,7 @@
       return;
     }
     var dir = $('inpDireccion').value.trim();
-    if (!dir) { alert('Escribí la dirección de entrega.'); $('inpDireccion').focus(); return; }
+    if (!dir) { alert('Completá la dirección de entrega.'); $('inpDireccion').focus(); return; }
     var tel = $('inpTelefono').value.trim();
     localStorage.setItem('rm_direccion', dir);
     localStorage.setItem('rm_telefono', tel);
@@ -569,7 +723,7 @@
   /* ---------- Historial + recompra ---------- */
   function renderHistorial(lista) {
     if (!lista.length) {
-      $('listaHistorial').innerHTML = '<div class="vacio"><span class="ico">🧾</span>Todavía no hiciste pedidos.<br>Tu primer pedido queda guardado acá para repetirlo en un toque.</div>';
+      $('listaHistorial').innerHTML = '<div class="vacio"><span class="ico">🧾</span>Acá aparecen tus pedidos. Cuando hagas el primero, lo podés repetir con un toque.</div>';
       return;
     }
     var html = '';
@@ -606,7 +760,7 @@
       });
       return;
     }
-    $('listaHistorial').innerHTML = '<div class="vacio">Cargando…</div>';
+    $('listaHistorial').innerHTML = '<div class="vacio">CompraZona</div>';
     RM.misPedidos(usuario.uid, function (e, lista) {
       if (e) { $('listaHistorial').innerHTML = '<div class="vacio">No se pudo cargar el historial: ' + e + '</div>'; return; }
       renderHistorial(lista);
