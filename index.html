@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<!--
+  ARCHIVO: index.html
+  VERSIÓN: v0.1
+  FECHA: 01/08/2026
+  PROYECTO: RavenMarket — App Cliente (marketplace público) | RavenTechs
+  CHANGELOG:
+  - v0.1 (01/08/2026): Primera app cliente funcional en MODO DEMO. Portada con buscador y
+    categorías, ranking de empresas con insignias, detalle con carrito, confirmación de
+    pedido con dirección guardada, generación de mensaje WhatsApp, historial local con
+    recompra en un toque, ubicación opcional para ordenar por distancia.
+-->
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>RavenMarket</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+
+<div class="demo-banner" id="demoBanner" style="display:none">MODO DEMO — datos de ejemplo, sin conexión a Firebase</div>
+
+<header class="app">
+  <div class="brand">
+    <div class="logo" id="brandLogo">🔥</div>
+    <div>
+      <h1 id="brandNombre">Cargando…</h1>
+      <div class="lema" id="brandLema"></div>
+    </div>
+  </div>
+  <div class="zona" id="brandZona"></div>
+</header>
+
+<main>
+
+  <!-- ========== VISTA INICIO ========== -->
+  <div class="vista activa" id="vInicio">
+    <div class="buscador">
+      <input type="text" id="inpBuscar" placeholder="¿Qué necesitás? Ej: una garrafa de 10" autocomplete="off">
+      <button id="btnBuscar" aria-label="Buscar">Buscar</button>
+    </div>
+    <div class="seccion-titulo">Categorías</div>
+    <div class="cat-grid" id="catGrid"></div>
+    <button class="btn-sec" id="btnUbicacion">📍 Usar mi ubicación para ordenar por cercanía</button>
+  </div>
+
+  <!-- ========== VISTA EMPRESAS ========== -->
+  <div class="vista" id="vEmpresas">
+    <button class="volver" data-ir="vInicio">← Volver</button>
+    <div class="seccion-titulo" id="tituloEmpresas"></div>
+    <div id="listaEmpresas"></div>
+  </div>
+
+  <!-- ========== VISTA DETALLE EMPRESA ========== -->
+  <div class="vista" id="vEmpresa">
+    <button class="volver" data-ir="vEmpresas">← Volver</button>
+    <div class="detalle-head">
+      <div class="emp-nombre" id="detNombre"></div>
+      <div class="emp-dir" id="detDir"></div>
+      <div class="emp-datos" id="detDatos"></div>
+    </div>
+    <div class="seccion-titulo">Productos</div>
+    <div id="listaProductos"></div>
+  </div>
+
+  <!-- ========== VISTA CONFIRMAR ========== -->
+  <div class="vista" id="vConfirmar">
+    <button class="volver" data-ir="vEmpresa">← Volver</button>
+    <div class="seccion-titulo">Confirmar pedido</div>
+    <div class="resumen" id="resumenPedido"></div>
+    <div class="campo">
+      <label for="inpDireccion">Dirección de entrega</label>
+      <input type="text" id="inpDireccion" placeholder="Calle, número, localidad">
+    </div>
+    <div class="campo">
+      <label for="inpNota">Nota para la empresa (opcional)</label>
+      <textarea id="inpNota" rows="2" placeholder="Ej: tocar timbre, casa del portón verde"></textarea>
+    </div>
+    <button class="btn-principal" id="btnEnviar" style="width:100%">Enviar pedido por WhatsApp</button>
+  </div>
+
+  <!-- ========== VISTA HISTORIAL ========== -->
+  <div class="vista" id="vHistorial">
+    <div class="seccion-titulo">Mis pedidos</div>
+    <div id="listaHistorial"></div>
+  </div>
+
+</main>
+
+<!-- Barra carrito flotante -->
+<div class="carrito-bar" id="carritoBar" style="display:none">
+  <div class="inner">
+    <div class="total">
+      <div class="t1" id="carritoDetalle"></div>
+      <div class="t2" id="carritoTotal"></div>
+    </div>
+    <button class="btn-principal" id="btnIrConfirmar">Pedir</button>
+  </div>
+</div>
+
+<!-- Modal WhatsApp -->
+<div class="modal-fondo" id="modalFondo">
+  <div class="modal">
+    <h3 id="modalTitulo">✅ Pedido registrado</h3>
+    <p style="font-size:13.5px;color:var(--c-suave)">Este es el mensaje que recibe la empresa:</p>
+    <div class="wa-preview" id="waPreview"></div>
+    <a class="btn-principal" id="btnWa" style="display:block;text-align:center;text-decoration:none" target="_blank" rel="noopener">Abrir WhatsApp</a>
+    <button class="btn-sec" id="btnCerrarModal">Cerrar</button>
+  </div>
+</div>
+
+<!-- Nav inferior -->
+<nav class="nav-inferior">
+  <button data-ir="vInicio" class="activo" id="navInicio"><span class="ni">🏠</span>Inicio</button>
+  <button data-ir="vHistorial" id="navHistorial"><span class="ni">🧾</span>Mis pedidos</button>
+</nav>
+
+<script src="core.js"></script>
+<script>
+/* ============ APP CLIENTE v0.1 ============ */
+(function () {
+  var DATOS = null;          // { tenant, categorias, empresas, productos }
+  var catActual = null;
+  var empActual = null;
+  var carrito = {};          // prodId -> { prod, cant }
+  var userGeo = null;
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ---------- Navegación ---------- */
+  function irA(vistaId) {
+    var vistas = document.querySelectorAll('.vista');
+    for (var i = 0; i < vistas.length; i++) vistas[i].classList.remove('activa');
+    $(vistaId).classList.add('activa');
+    $('navInicio').classList.toggle('activo', vistaId !== 'vHistorial');
+    $('navHistorial').classList.toggle('activo', vistaId === 'vHistorial');
+    if (vistaId === 'vHistorial') pintarHistorial();
+    window.scrollTo(0, 0);
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-ir]');
+    if (b) irA(b.getAttribute('data-ir'));
+  });
+
+  /* ---------- Arranque ---------- */
+  RM.initTenant(function (err, datos) {
+    if (err) { $('brandNombre').textContent = 'Error: ' + err; return; }
+    DATOS = datos;
+    if (RM_CONFIG.DEMO) $('demoBanner').style.display = 'block';
+    $('brandNombre').textContent = datos.tenant.nombre;
+    $('brandLema').textContent = datos.tenant.lema || '';
+    $('brandZona').textContent = '📍 ' + (datos.tenant.zona || '');
+    var primeraCat = datos.categorias[0];
+    if (primeraCat) $('brandLogo').textContent = primeraCat.icono;
+    pintarCategorias();
+  });
+
+  function pintarCategorias() {
+    var html = '';
+    DATOS.categorias.forEach(function (c) {
+      html += '<button class="cat-btn" data-cat="' + c.id + '">' +
+              '<span class="ico">' + c.icono + '</span>' +
+              '<span class="nom">' + c.nombre + '</span></button>';
+    });
+    $('catGrid').innerHTML = html;
+    var botones = $('catGrid').querySelectorAll('[data-cat]');
+    for (var i = 0; i < botones.length; i++) {
+      botones[i].addEventListener('click', function () {
+        abrirCategoria(this.getAttribute('data-cat'));
+      });
+    }
+  }
+
+  /* ---------- Búsqueda ---------- */
+  function buscar() {
+    var q = $('inpBuscar').value;
+    if (!q.trim()) return;
+    var cat = RM.buscarCategoria(q, DATOS.categorias);
+    if (cat) { abrirCategoria(cat.id); }
+    else { alert('No encontramos esa categoría todavía. Probá con "garrafa" o "agua".'); }
+  }
+  $('btnBuscar').addEventListener('click', buscar);
+  $('inpBuscar').addEventListener('keydown', function (e) { if (e.key === 'Enter') buscar(); });
+
+  /* ---------- Ubicación ---------- */
+  $('btnUbicacion').addEventListener('click', function () {
+    if (!navigator.geolocation) { alert('Tu navegador no permite ubicación.'); return; }
+    $('btnUbicacion').textContent = '📍 Obteniendo ubicación…';
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      userGeo = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      $('btnUbicacion').textContent = '✅ Ubicación activada — ordenamos por cercanía';
+    }, function () {
+      $('btnUbicacion').textContent = '📍 Usar mi ubicación para ordenar por cercanía';
+      alert('No pudimos obtener tu ubicación.');
+    });
+  });
+
+  /* ---------- Lista de empresas rankeadas ---------- */
+  function abrirCategoria(catId) {
+    catActual = null;
+    DATOS.categorias.forEach(function (c) { if (c.id === catId) catActual = c; });
+    if (!catActual) return;
+    $('tituloEmpresas').textContent = catActual.icono + ' ' + catActual.nombre + ' — empresas de tu zona';
+    var ranking = RM.rankear(DATOS.empresas, catId, DATOS.productos, DATOS.tenant.scoring, userGeo);
+    var html = '';
+    if (!ranking.length) html = '<div class="vacio"><span class="ico">🔍</span>Todavía no hay empresas en esta categoría.</div>';
+    ranking.forEach(function (r) {
+      var badges = '';
+      r.badges.forEach(function (b, idx) {
+        badges += '<span class="badge' + (idx % 2 === 1 ? ' b-sec' : '') + '">' + b.icono + ' ' + b.texto + '</span>';
+      });
+      var datos = [];
+      if (r.precioRef !== null) datos.push('<span class="emp-precio">Desde ' + RM.formatPesos(r.precioRef) + '</span>');
+      datos.push('⏱ ' + r.emp.tiempoEstimadoMin + ' min aprox');
+      datos.push('★ ' + r.emp.ratingProm.toFixed(1) + ' (' + r.emp.ratingCant + ')');
+      if (r.dist !== null) datos.push('📍 ' + r.dist.toFixed(1) + ' km');
+      html += '<button class="emp-card" data-emp="' + r.emp.id + '">' +
+        '<div class="emp-top"><div><div class="emp-nombre">' + r.emp.nombre + '</div>' +
+        '<div class="emp-dir">' + r.emp.direccion + '</div></div>' +
+        '<span class="emp-estado ' + (r.abierta ? 'abierta">Abierto' : 'cerrada">Cerrado') + '</span></div>' +
+        '<div class="emp-datos">' + datos.join(' · ') + '</div>' +
+        (badges ? '<div class="badges">' + badges + '</div>' : '') + '</button>';
+    });
+    $('listaEmpresas').innerHTML = html;
+    var cards = $('listaEmpresas').querySelectorAll('[data-emp]');
+    for (var i = 0; i < cards.length; i++) {
+      cards[i].addEventListener('click', function () {
+        abrirEmpresa(this.getAttribute('data-emp'));
+      });
+    }
+    irA('vEmpresas');
+  }
+
+  /* ---------- Detalle empresa + carrito ---------- */
+  function abrirEmpresa(empId) {
+    var nueva = null;
+    DATOS.empresas.forEach(function (e) { if (e.id === empId) nueva = e; });
+    if (!nueva) return;
+    if (empActual && empActual.id !== nueva.id && Object.keys(carrito).length) {
+      if (!confirm('Tenés un pedido armado con ' + empActual.nombre + '. ¿Vaciarlo para pedir acá?')) return;
+      carrito = {};
+    }
+    empActual = nueva;
+    $('detNombre').textContent = empActual.nombre;
+    $('detDir').textContent = empActual.direccion;
+    var abierta = RM.estaAbierta(empActual);
+    $('detDatos').innerHTML =
+      '<span>' + (abierta ? '🟢 Abierto ahora' : '🔴 Cerrado ahora') + '</span>' +
+      '<span>⏱ ' + empActual.tiempoEstimadoMin + ' min aprox</span>' +
+      '<span>★ ' + empActual.ratingProm.toFixed(1) + '</span>';
+    pintarProductos();
+    irA('vEmpresa');
+  }
+
+  function pintarProductos() {
+    // Se muestran TODOS los productos activos de la empresa (venta cruzada intencional:
+    // quien entra por garrafas también ve el agua si la empresa vende ambas)
+    var lista = (DATOS.productos[empActual.id] || []).filter(function (p) { return p.activo; });
+    var html = '';
+    lista.forEach(function (p) {
+      var cant = carrito[p.id] ? carrito[p.id].cant : 0;
+      html += '<div class="prod"><div class="info">' +
+        '<div class="nom">' + p.nombre + '</div>' +
+        '<div class="pre">' + RM.formatPesos(p.precio) + '</div></div>' +
+        '<div class="stepper">' +
+        '<button data-menos="' + p.id + '" aria-label="Quitar">−</button>' +
+        '<span class="cant" id="cant-' + p.id + '">' + cant + '</span>' +
+        '<button data-mas="' + p.id + '" aria-label="Agregar">+</button>' +
+        '</div></div>';
+    });
+    $('listaProductos').innerHTML = html;
+    lista.forEach(function (p) {
+      $('listaProductos').querySelector('[data-mas="' + p.id + '"]')
+        .addEventListener('click', function () { cambiarCant(p, 1); });
+      $('listaProductos').querySelector('[data-menos="' + p.id + '"]')
+        .addEventListener('click', function () { cambiarCant(p, -1); });
+    });
+    pintarCarrito();
+  }
+
+  function cambiarCant(prod, delta) {
+    var actual = carrito[prod.id] ? carrito[prod.id].cant : 0;
+    var nueva = Math.max(0, actual + delta);
+    if (nueva === 0) delete carrito[prod.id];
+    else carrito[prod.id] = { prod: prod, cant: nueva };
+    var el = $('cant-' + prod.id);
+    if (el) el.textContent = nueva;
+    pintarCarrito();
+  }
+
+  function totalesCarrito() {
+    var total = 0, unidades = 0;
+    Object.keys(carrito).forEach(function (k) {
+      total += carrito[k].prod.precio * carrito[k].cant;
+      unidades += carrito[k].cant;
+    });
+    return { total: total, unidades: unidades };
+  }
+
+  function pintarCarrito() {
+    var t = totalesCarrito();
+    if (t.unidades === 0) { $('carritoBar').style.display = 'none'; return; }
+    $('carritoBar').style.display = 'block';
+    $('carritoDetalle').textContent = t.unidades + (t.unidades === 1 ? ' producto' : ' productos') + ' · ' + empActual.nombre;
+    $('carritoTotal').textContent = RM.formatPesos(t.total);
+  }
+
+  $('btnIrConfirmar').addEventListener('click', function () {
+    var t = totalesCarrito();
+    if (!t.unidades) return;
+    var html = '';
+    Object.keys(carrito).forEach(function (k) {
+      var it = carrito[k];
+      html += '<div class="linea"><span>' + it.cant + ' x ' + it.prod.nombre + '</span><span>' +
+              RM.formatPesos(it.prod.precio * it.cant) + '</span></div>';
+    });
+    html += '<div class="linea total"><span>Total</span><span>' + RM.formatPesos(t.total) + '</span></div>';
+    $('resumenPedido').innerHTML = html;
+    $('inpDireccion').value = localStorage.getItem('rm_direccion') || '';
+    irA('vConfirmar');
+  });
+
+  /* ---------- Enviar pedido ---------- */
+  $('btnEnviar').addEventListener('click', function () {
+    var dir = $('inpDireccion').value.trim();
+    if (!dir) { alert('Escribí la dirección de entrega.'); $('inpDireccion').focus(); return; }
+    localStorage.setItem('rm_direccion', dir);
+    var t = totalesCarrito();
+    var ahora = new Date();
+    var pedido = {
+      codigo: RM.codigoPedido(),
+      empresaId: empActual.id,
+      empresaNombre: empActual.nombre,
+      whatsapp: empActual.whatsapp,
+      items: Object.keys(carrito).map(function (k) {
+        return { id: k, nombre: carrito[k].prod.nombre, precio: carrito[k].prod.precio, cant: carrito[k].cant };
+      }),
+      total: t.total,
+      direccion: dir,
+      nota: $('inpNota').value.trim(),
+      ts: ahora.getTime(),
+      fechaTexto: ahora.toLocaleDateString('es-AR') + ' ' +
+                  ahora.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
+      estado: 'enviado'
+    };
+    var hist = JSON.parse(localStorage.getItem('rm_historial') || '[]');
+    hist.unshift(pedido);
+    localStorage.setItem('rm_historial', JSON.stringify(hist.slice(0, 50)));
+    var msj = RM.mensajeWhatsApp(pedido, DATOS.tenant);
+    $('waPreview').textContent = msj;
+    $('btnWa').href = RM.waLink(pedido.whatsapp, msj);
+    $('modalTitulo').textContent = '✅ Pedido #' + pedido.codigo + ' registrado';
+    $('modalFondo').classList.add('abierto');
+    carrito = {};
+    pintarCarrito();
+  });
+
+  $('btnCerrarModal').addEventListener('click', function () {
+    $('modalFondo').classList.remove('abierto');
+    $('inpNota').value = '';
+    irA('vHistorial');
+  });
+
+  /* ---------- Historial + recompra ---------- */
+  function pintarHistorial() {
+    var hist = JSON.parse(localStorage.getItem('rm_historial') || '[]');
+    if (!hist.length) {
+      $('listaHistorial').innerHTML = '<div class="vacio"><span class="ico">🧾</span>Todavía no hiciste pedidos.<br>Tu primer pedido queda guardado acá para repetirlo en un toque.</div>';
+      return;
+    }
+    var html = '';
+    hist.forEach(function (p, i) {
+      var items = p.items.map(function (it) { return it.cant + 'x ' + it.nombre; }).join(', ');
+      html += '<div class="ped-card">' +
+        '<div class="ped-top"><span>#' + p.codigo + '</span><span>' + p.fechaTexto + '</span></div>' +
+        '<div class="ped-emp">' + p.empresaNombre + '</div>' +
+        '<div class="ped-items">' + items + '</div>' +
+        '<div class="ped-total">' + RM.formatPesos(p.total) + '</div>' +
+        '<button class="btn-sec" data-recompra="' + i + '">🔁 Repetir este pedido</button></div>';
+    });
+    $('listaHistorial').innerHTML = html;
+    var botones = $('listaHistorial').querySelectorAll('[data-recompra]');
+    for (var i = 0; i < botones.length; i++) {
+      botones[i].addEventListener('click', function () {
+        recomprar(hist[Number(this.getAttribute('data-recompra'))]);
+      });
+    }
+  }
+
+  function recomprar(pedido) {
+    var emp = null;
+    DATOS.empresas.forEach(function (e) { if (e.id === pedido.empresaId) emp = e; });
+    if (!emp) { alert('Esa empresa ya no está disponible.'); return; }
+    empActual = emp;
+    carrito = {};
+    var faltantes = [];
+    pedido.items.forEach(function (it) {
+      var prod = null;
+      (DATOS.productos[emp.id] || []).forEach(function (p) { if (p.id === it.id && p.activo) prod = p; });
+      if (prod) carrito[prod.id] = { prod: prod, cant: it.cant };  // precio ACTUAL, no el viejo
+      else faltantes.push(it.nombre);
+    });
+    if (faltantes.length) alert('Ya no disponible: ' + faltantes.join(', ') + '. Se agregó el resto.');
+    if (!Object.keys(carrito).length) { alert('Ninguno de esos productos está disponible hoy.'); return; }
+    abrirEmpresa(emp.id);
+  }
+
+})();
+</script>
+</body>
+</html>
