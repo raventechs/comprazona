@@ -1,7 +1,14 @@
 <!DOCTYPE html>
 <!--
   ARCHIVO: empresa.html
-  VERSIÓN: v0.5
+  VERSIÓN: v0.6
+  FECHA: 01/08/2026
+  PROYECTO: CompraZona — Panel Empresa | RavenTechs
+  CHANGELOG:
+  - v0.6 (01/08/2026): Empresas solo pueden cambiar precios (no agregar productos — eso
+    es onboarding). Modal de confirmación antes de guardar un precio nuevo. FAB y botón
+    editar ocultos para rol empresa; solo el super admin puede agregar/editar productos.
+  - v0.5 (01/08/2026): Seguridad XSS, App Check SDK.
   FECHA: 01/08/2026
   PROYECTO: RavenMarket — Panel Empresa | RavenTechs
   CHANGELOG:
@@ -213,6 +220,33 @@
 </main>
 
 <button class="fab" id="fabAgregar" title="Agregar producto" aria-label="Agregar producto" style="display:none">+</button>
+
+<div class="modal-fondo" id="modalPrecio">
+  <div class="modal">
+    <h3 id="mpTitulo">Cambiar precio</h3>
+    <p id="mpProducto" style="color:var(--c-suave);font-size:14px;margin-bottom:4px"></p>
+    <div style="display:flex;gap:12px;margin:14px 0;align-items:center">
+      <div style="flex:1;text-align:center;background:var(--c-fondo);border-radius:12px;padding:12px">
+        <div style="font-size:11.5px;font-weight:700;color:var(--c-suave);margin-bottom:4px">Precio actual</div>
+        <div id="mpActual" style="font-size:18px;font-weight:800;color:var(--c-suave)"></div>
+      </div>
+      <div style="font-size:22px;color:var(--c-primario)">→</div>
+      <div style="flex:1;text-align:center">
+        <div style="font-size:11.5px;font-weight:700;color:var(--c-suave);margin-bottom:4px">Precio nuevo</div>
+        <input id="mpNuevo" type="number" min="0" step="100"
+          style="width:100%;text-align:center;font-size:18px;font-weight:800;padding:10px;
+                 border:2px solid var(--c-primario);border-radius:12px;background:var(--c-tarjeta)">
+      </div>
+    </div>
+    <p style="font-size:13px;color:var(--c-suave);margin-bottom:16px;text-align:center">
+      El cambio se refleja en el marketplace al instante.
+    </p>
+    <button class="btn-principal" id="btnConfirmarPrecio" style="width:100%;margin-bottom:10px">
+      Confirmar cambio de precio
+    </button>
+    <button class="btn-sec" id="btnCancelarPrecio">Cancelar</button>
+  </div>
+</div>
 
 <div class="modal-fondo" id="modalProd">
   <div class="modal">
@@ -440,17 +474,19 @@
   /* ---------- Productos (Firestore) ---------- */
   function pintarProductos() {
     if (!productos.length) {
-      $('listaProdAdmin').innerHTML = '<div class="vacio"><span class="ico">🏷️</span>Todavía no cargaste productos.<br>Tocá el botón + para agregar el primero.</div>';
+      $('listaProdAdmin').innerHTML = '<div class="vacio"><span class="ico">🏷️</span>Todavía no hay productos cargados.<br>El administrador los agrega durante el alta de tu negocio.</div>';
       return;
     }
+    // FAB solo visible para super admin
+    $('fabAgregar').style.display = esAdmin ? 'block' : 'none';
     var html = '';
     productos.forEach(function (p) {
       html += '<div class="prod-admin' + (p.activo ? '' : ' inactivo') + '">' +
-        '<div><div class="nom">' + p.nombre + '</div>' +
+        '<div><div class="nom">' + RM.sanitizar(p.nombre) + '</div>' +
         '<button class="pre" data-precio="' + p.id + '">' + RM.formatPesos(p.precio) + ' ✎</button></div>' +
         '<div class="prod-acciones">' +
-        '<button class="mini-btn" data-toggle="' + p.id + '">' + (p.activo ? '👁' : '🚫') + '</button>' +
-        '<button class="mini-btn" data-editar="' + p.id + '">✏️</button>' +
+        '<button class="mini-btn" data-toggle="' + p.id + '" title="' + (p.activo ? 'Ocultar del catálogo' : 'Mostrar en el catálogo') + '">' + (p.activo ? '👁' : '🚫') + '</button>' +
+        (esAdmin ? '<button class="mini-btn" data-editar="' + p.id + '">✏️</button>' : '') +
         '</div></div>';
     });
     $('listaProdAdmin').innerHTML = html;
@@ -468,15 +504,17 @@
     var ed = e.target.closest('[data-editar]');
     if (!pr && !tg && !ed) return;
     if (pr) {
-      var prod = prodPorId(pr.getAttribute('data-precio'));
-      var nuevo = prompt('Nuevo precio para "' + prod.nombre + '":', prod.precio);
-      if (nuevo !== null && !isNaN(Number(nuevo)) && Number(nuevo) >= 0) {
-        prod.precio = Math.round(Number(nuevo));
-        RM.guardarProducto(empId, prod, function (err) {
-          if (err) { alert('No se pudo guardar: ' + err); return; }
-          pintarProductos(); toast();
-        });
-      }
+      var prodPr = prodPorId(pr.getAttribute('data-precio'));
+      if (!prodPr) return;
+      // Abrir modal de confirmación de precio en lugar de prompt()
+      $('mpProducto').textContent = prodPr.nombre;
+      $('mpActual').textContent = RM.formatPesos(prodPr.precio);
+      $('mpNuevo').value = prodPr.precio;
+      $('modalPrecio').classList.add('abierto');
+      $('mpNuevo').focus();
+      $('mpNuevo').select();
+      // Guardar referencia al producto que se está editando
+      $('btnConfirmarPrecio').dataset.prodId = prodPr.id;
     }
     if (tg) {
       var prodT = prodPorId(tg.getAttribute('data-toggle'));
@@ -502,6 +540,41 @@
     if (prod) $('prodCat').value = prod.categoria;
     $('modalProd').classList.add('abierto');
   }
+  /* ---- Modal de confirmación de precio ---- */
+  $('btnCancelarPrecio').addEventListener('click', function () {
+    $('modalPrecio').classList.remove('abierto');
+  });
+
+  $('btnConfirmarPrecio').addEventListener('click', function () {
+    var prodId = this.dataset.prodId;
+    var prod = prodPorId(prodId);
+    if (!prod) return;
+    var nuevoVal = Number($('mpNuevo').value);
+    if (isNaN(nuevoVal) || nuevoVal < 0) {
+      $('mpNuevo').style.borderColor = '#B4553B';
+      $('mpNuevo').focus();
+      return;
+    }
+    $('mpNuevo').style.borderColor = 'var(--c-primario)';
+    $('btnConfirmarPrecio').disabled = true;
+    $('btnConfirmarPrecio').textContent = 'Guardando…';
+    prod.precio = Math.round(nuevoVal);
+    RM.guardarProducto(empId, prod, function (err) {
+      $('btnConfirmarPrecio').disabled = false;
+      $('btnConfirmarPrecio').textContent = 'Confirmar cambio de precio';
+      if (err) { alert('No se pudo guardar: ' + err); return; }
+      $('modalPrecio').classList.remove('abierto');
+      pintarProductos();
+      toast();
+    });
+  });
+
+  // Confirmar con Enter en el campo de precio nuevo
+  $('mpNuevo').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') $('btnConfirmarPrecio').click();
+    if (e.key === 'Escape') $('btnCancelarPrecio').click();
+  });
+
   $('fabAgregar').addEventListener('click', function () { abrirModalProd(null); });
   $('btnCerrarProd').addEventListener('click', function () { $('modalProd').classList.remove('abierto'); });
 
