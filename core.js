@@ -1,29 +1,36 @@
 /*
   ARCHIVO: core.js
-  VERSIÓN: v0.1
+  VERSIÓN: v0.2
   FECHA: 01/08/2026
   PROYECTO: RavenMarket — Motor de Marketplaces Locales | RavenTechs
   CHANGELOG:
-  - v0.1 (01/08/2026): Núcleo inicial del motor. Config, modo demo con tenant Garrafas+Agua,
-    carga de tenant con branding runtime, normalización, búsqueda por sinónimos, ranking
-    configurable con insignias, distancia haversine, horarios, formato pesos AR completo,
-    generador de mensaje WhatsApp. Script clásico (sin módulos) para funcionar con file://.
+  - v0.2 (01/08/2026): Conexión Firebase real (proyecto ravenmarket-c2739). Capa de datos
+    Firestore: tenant, catálogo con caché local (1 h), pedidos (crear, historial del cliente,
+    escucha en vivo por empresa, actualizar estado), gestión de empresa y productos, perfil de
+    usuario con rol. Auth Google. Fallback automático a datos demo si el tenant aún no fue
+    inicializado con setup.html. Queries sin índices compuestos (limit + filtro en cliente).
+  - v0.1 (01/08/2026): Núcleo inicial en modo demo.
 */
 
 /* ================= CONFIGURACIÓN ================= */
 var RM_CONFIG = {
-  DEMO: true,                       // true = datos demo locales, sin Firebase
+  DEMO: false,                      // false = Firebase real (con fallback demo si falta el seed)
   TENANT_DEFAULT: 'garrafas-agua',
   SUPER_ADMIN: 'rgaraventa@gmail.com',
+  CACHE_CATALOGO_MS: 60 * 60 * 1000, // 1 hora
   FIREBASE: {
-    // Pegar aquí la config del proyecto Firebase "ravenmarket" cuando exista:
-    apiKey: '', authDomain: '', projectId: '', storageBucket: '', messagingSenderId: '', appId: ''
+    apiKey: "AIzaSyAwsmI5H5qUZT0tj8vZYhPscTmZqHI2SQ4",
+    authDomain: "ravenmarket-c2739.firebaseapp.com",
+    projectId: "ravenmarket-c2739",
+    storageBucket: "ravenmarket-c2739.firebasestorage.app",
+    messagingSenderId: "514168931031",
+    appId: "1:514168931031:web:3887e0ff2c1792ba21a692"
   }
 };
 
-/* ================= DATOS DEMO (tenant 1) =================
-   Editables libremente. En producción, todo esto vive en Firestore
-   bajo tenants/{tenantId} y se administra desde admin.html.       */
+/* ================= DATOS DEMO / SEED =================
+   Sirven como fallback visual y como semilla inicial del
+   tenant que setup.html escribe en Firestore.            */
 var RM_DEMO = {
   tenant: {
     slug: 'garrafas-agua',
@@ -33,7 +40,8 @@ var RM_DEMO = {
     moneda: 'ARS',
     modulosActivos: ['garrafas', 'agua'],
     scoring: { precio: 35, distancia: 25, rating: 25, rapidez: 15, boostDestacada: 6 },
-    zona: 'González Catán y alrededores'
+    zona: 'González Catán y alrededores',
+    activo: true
   },
   categorias: [
     { id: 'garrafas', nombre: 'Garrafas', icono: '🔥', orden: 1, activa: true,
@@ -90,13 +98,15 @@ var RM_DEMO = {
 /* ================= NÚCLEO DEL MOTOR ================= */
 var RM = (function () {
 
+  var fb = { app: null, auth: null, db: null };
+  var tenantId = RM_CONFIG.TENANT_DEFAULT;
+
   /* ---- Utilidades ---- */
   function normalizar(txt) {
     return String(txt || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
   }
 
   function formatPesos(n) {
-    // Formato argentino completo, sin sufijos: $23.000
     var v = Math.round(Number(n) || 0);
     return '$' + v.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   }
@@ -123,23 +133,64 @@ var RM = (function () {
     return ahora >= desde && ahora <= hasta;
   }
 
-  /* ---- Carga de tenant y branding runtime ---- */
-  function initTenant(cb) {
-    if (RM_CONFIG.DEMO) {
-      aplicarBranding(RM_DEMO.tenant);
-      cb(null, {
-        tenant: RM_DEMO.tenant,
-        categorias: RM_DEMO.categorias.filter(function (c) { return c.activa; })
-                     .sort(function (a, b) { return a.orden - b.orden; }),
-        empresas: RM_DEMO.empresas.filter(function (e) { return e.activa; }),
-        productos: RM_DEMO.productos
-      });
-      return;
-    }
-    // Producción: leer tenants/{slug} desde Firestore (se implementa al conectar Firebase)
-    cb('Firebase no configurado todavía. Activá DEMO o pegá la config en RM_CONFIG.FIREBASE.');
+  function fechaTextoAhora() {
+    var d = new Date();
+    return d.toLocaleDateString('es-AR') + ' ' +
+           d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
   }
 
+  /* ---- Firebase ---- */
+  function tieneFirebase() {
+    return !RM_CONFIG.DEMO && typeof firebase !== 'undefined' && RM_CONFIG.FIREBASE.apiKey;
+  }
+
+  function initFirebase() {
+    if (fb.app) return true;
+    if (!tieneFirebase()) return false;
+    fb.app = firebase.initializeApp(RM_CONFIG.FIREBASE);
+    fb.auth = firebase.auth();
+    fb.db = firebase.firestore();
+    return true;
+  }
+
+  function tRef() { return fb.db.collection('tenants').doc(tenantId); }
+
+  /* ---- Auth ---- */
+  function onAuth(cb) {
+    if (!initFirebase()) { cb(null); return; }
+    fb.auth.onAuthStateChanged(function (user) { cb(user || null); });
+  }
+
+  function login(cb) {
+    if (!initFirebase()) { cb('Firebase no disponible'); return; }
+    var provider = new firebase.auth.GoogleAuthProvider();
+    fb.auth.signInWithPopup(provider).then(function (res) {
+      asegurarPerfil(res.user, function () { cb(null, res.user); });
+    }).catch(function (e) { cb(e.message || 'No se pudo iniciar sesión'); });
+  }
+
+  function logout(cb) {
+    if (!fb.auth) { if (cb) cb(); return; }
+    fb.auth.signOut().then(function () { if (cb) cb(); });
+  }
+
+  function asegurarPerfil(user, cb) {
+    var ref = tRef().collection('usuarios').doc(user.uid);
+    ref.get().then(function (snap) {
+      if (snap.exists) { cb(snap.data()); return; }
+      var perfil = { rol: 'cliente', nombre: user.displayName || '', email: user.email || '', creado: Date.now() };
+      ref.set(perfil).then(function () { cb(perfil); })
+        .catch(function () { cb(perfil); }); // si rules lo impiden, seguimos igual
+    }).catch(function () { cb(null); });
+  }
+
+  function perfilUsuario(uid, cb) {
+    tRef().collection('usuarios').doc(uid).get()
+      .then(function (s) { cb(null, s.exists ? s.data() : null); })
+      .catch(function (e) { cb(e.message); });
+  }
+
+  /* ---- Tenant + catálogo (con caché) ---- */
   function aplicarBranding(tenant) {
     var r = document.documentElement.style;
     if (tenant.colores) {
@@ -148,6 +199,98 @@ var RM = (function () {
       if (tenant.colores.fondo) r.setProperty('--c-fondo', tenant.colores.fondo);
     }
     document.title = tenant.nombre;
+  }
+
+  function datosDemo() {
+    return {
+      tenant: RM_DEMO.tenant,
+      categorias: RM_DEMO.categorias.filter(function (c) { return c.activa; })
+                    .sort(function (a, b) { return a.orden - b.orden; }),
+      empresas: RM_DEMO.empresas.filter(function (e) { return e.activa; }),
+      productos: RM_DEMO.productos,
+      modoDemo: true
+    };
+  }
+
+  function initTenant(opts, cb) {
+    if (typeof opts === 'function') { cb = opts; opts = {}; }
+    opts = opts || {};
+    // Slug por URL (?t=...) o default
+    try {
+      var m = window.location.search.match(/[?&]t=([\w-]+)/);
+      if (m) tenantId = m[1];
+    } catch (e) {}
+
+    if (!tieneFirebase()) {
+      var d = datosDemo();
+      aplicarBranding(d.tenant);
+      cb(null, d);
+      return;
+    }
+    initFirebase();
+
+    // Caché de catálogo (solo lecturas del cliente; opts.fresco la saltea)
+    if (!opts.fresco) {
+      try {
+        var cache = JSON.parse(localStorage.getItem('rm_cache_' + tenantId) || 'null');
+        if (cache && (Date.now() - cache.ts) < RM_CONFIG.CACHE_CATALOGO_MS) {
+          aplicarBranding(cache.datos.tenant);
+          cb(null, cache.datos);
+          return;
+        }
+      } catch (e) {}
+    }
+
+    tRef().get().then(function (tSnap) {
+      if (!tSnap.exists) {
+        // Tenant sin inicializar: fallback demo para no romper la app pública
+        var d = datosDemo();
+        d.faltaSeed = true;
+        aplicarBranding(d.tenant);
+        cb(null, d);
+        return;
+      }
+      var tenant = tSnap.data();
+      var resultado = { tenant: tenant, categorias: [], empresas: [], productos: {}, modoDemo: false };
+      tRef().collection('categorias').get().then(function (cSnap) {
+        cSnap.forEach(function (doc) {
+          var c = doc.data(); c.id = doc.id;
+          if (c.activa) resultado.categorias.push(c);
+        });
+        resultado.categorias.sort(function (a, b) { return (a.orden || 0) - (b.orden || 0); });
+        return tRef().collection('empresas').get();
+      }).then(function (eSnap) {
+        var lecturasProductos = [];
+        eSnap.forEach(function (doc) {
+          var e = doc.data(); e.id = doc.id;
+          if (!e.activa) return;
+          resultado.empresas.push(e);
+          lecturasProductos.push(
+            tRef().collection('empresas').doc(e.id).collection('productos').get()
+              .then(function (pSnap) {
+                var lista = [];
+                pSnap.forEach(function (p) { var d2 = p.data(); d2.id = p.id; lista.push(d2); });
+                resultado.productos[e.id] = lista;
+              })
+          );
+        });
+        return Promise.all(lecturasProductos);
+      }).then(function () {
+        aplicarBranding(resultado.tenant);
+        try {
+          localStorage.setItem('rm_cache_' + tenantId, JSON.stringify({ ts: Date.now(), datos: resultado }));
+        } catch (e) {}
+        cb(null, resultado);
+      }).catch(function (e) {
+        cb(e.message || 'Error leyendo el catálogo');
+      });
+    }).catch(function (e) {
+      cb(e.message || 'Error de conexión con Firestore');
+    });
+  }
+
+  function limpiarCache() {
+    try { localStorage.removeItem('rm_cache_' + tenantId); } catch (e) {}
   }
 
   /* ---- Búsqueda por sinónimos ---- */
@@ -216,11 +359,10 @@ var RM = (function () {
       c.puntaje = (scoring.precio * fPrecio + scoring.distancia * fDist +
                    scoring.rating * fRating + scoring.rapidez * fRapidez) / pesoTotal;
       if (c.emp.destacada) c.puntaje += (scoring.boostDestacada || 0);
-      if (!c.abierta) c.puntaje -= 25; // penalización cerrada (configurable a futuro)
+      if (!c.abierta) c.puntaje -= 25;
       c.badges = [];
     });
 
-    // Insignias
     candidatas.reduce(function (a, b) { return b.puntaje > a.puntaje ? b : a; })
       .badges.push({ icono: '⭐', texto: 'Recomendado' });
     var conPrecio = candidatas.filter(function (c) { return c.precioRef !== null; });
@@ -240,11 +382,77 @@ var RM = (function () {
     return candidatas;
   }
 
-  /* ---- Pedido → mensaje WhatsApp ---- */
+  /* ---- Pedidos ---- */
   function codigoPedido() {
     var chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789', c = '';
     for (var i = 0; i < 4; i++) c += chars.charAt(Math.floor(Math.random() * chars.length));
     return c;
+  }
+
+  function crearPedido(pedido, cb) {
+    if (!initFirebase()) { cb('Sin conexión a Firebase'); return; }
+    tRef().collection('pedidos').add(pedido)
+      .then(function (ref) { cb(null, ref.id); })
+      .catch(function (e) { cb(e.message || 'No se pudo registrar el pedido'); });
+  }
+
+  function misPedidos(uid, cb) {
+    if (!initFirebase()) { cb('Sin conexión'); return; }
+    tRef().collection('pedidos').where('clienteUid', '==', uid).limit(50).get()
+      .then(function (snap) {
+        var lista = [];
+        snap.forEach(function (d) { var p = d.data(); p.docId = d.id; lista.push(p); });
+        lista.sort(function (a, b) { return b.ts - a.ts; });
+        cb(null, lista);
+      })
+      .catch(function (e) { cb(e.message); });
+  }
+
+  function escucharPedidosEmpresa(empresaId, cb) {
+    if (!initFirebase()) { cb('Sin conexión'); return null; }
+    // Sin orderBy para no requerir índice compuesto: se ordena en el cliente
+    return tRef().collection('pedidos').where('empresaId', '==', empresaId).limit(200)
+      .onSnapshot(function (snap) {
+        var lista = [];
+        snap.forEach(function (d) { var p = d.data(); p.docId = d.id; lista.push(p); });
+        lista.sort(function (a, b) { return b.ts - a.ts; });
+        cb(null, lista);
+      }, function (e) { cb(e.message || 'Error escuchando pedidos'); });
+  }
+
+  function actualizarPedido(docId, cambios, cb) {
+    tRef().collection('pedidos').doc(docId).update(cambios)
+      .then(function () { cb(null); })
+      .catch(function (e) { cb(e.message); });
+  }
+
+  /* ---- Gestión empresa (panel) ---- */
+  function guardarEmpresa(empresaId, datos, cb) {
+    tRef().collection('empresas').doc(empresaId).set(datos, { merge: true })
+      .then(function () { limpiarCache(); cb(null); })
+      .catch(function (e) { cb(e.message); });
+  }
+
+  function guardarProducto(empresaId, prod, cb) {
+    var col = tRef().collection('empresas').doc(empresaId).collection('productos');
+    var id = prod.id;
+    var data = { nombre: prod.nombre, precio: prod.precio, categoria: prod.categoria, activo: prod.activo !== false };
+    var op = id ? col.doc(id).set(data, { merge: true }) : col.add(data);
+    op.then(function (ref) { limpiarCache(); cb(null, id || ref.id); })
+      .catch(function (e) { cb(e.message); });
+  }
+
+  function leerEmpresaFresca(empresaId, cb) {
+    var ref = tRef().collection('empresas').doc(empresaId);
+    ref.get().then(function (s) {
+      if (!s.exists) { cb('La empresa no existe'); return; }
+      var emp = s.data(); emp.id = s.id;
+      ref.collection('productos').get().then(function (pSnap) {
+        var prods = [];
+        pSnap.forEach(function (p) { var d = p.data(); d.id = p.id; prods.push(d); });
+        cb(null, emp, prods);
+      });
+    }).catch(function (e) { cb(e.message); });
   }
 
   function mensajeWhatsApp(pedido, tenant) {
@@ -258,6 +466,7 @@ var RM = (function () {
     lineas.push('');
     lineas.push('💰 *Total: ' + formatPesos(pedido.total) + '*');
     lineas.push('📍 ' + pedido.direccion);
+    if (pedido.geo) lineas.push('🗺 https://maps.google.com/?q=' + pedido.geo.lat + ',' + pedido.geo.lng);
     if (pedido.nota) lineas.push('📝 ' + pedido.nota);
     lineas.push('🕐 ' + pedido.fechaTexto);
     return lineas.join('\n');
@@ -273,11 +482,25 @@ var RM = (function () {
     formatPesos: formatPesos,
     distanciaKm: distanciaKm,
     estaAbierta: estaAbierta,
+    fechaTextoAhora: fechaTextoAhora,
     initTenant: initTenant,
+    limpiarCache: limpiarCache,
+    onAuth: onAuth,
+    login: login,
+    logout: logout,
+    perfilUsuario: perfilUsuario,
     buscarCategoria: buscarCategoria,
     rankear: rankear,
     codigoPedido: codigoPedido,
+    crearPedido: crearPedido,
+    misPedidos: misPedidos,
+    escucharPedidosEmpresa: escucharPedidosEmpresa,
+    actualizarPedido: actualizarPedido,
+    guardarEmpresa: guardarEmpresa,
+    guardarProducto: guardarProducto,
+    leerEmpresaFresca: leerEmpresaFresca,
     mensajeWhatsApp: mensajeWhatsApp,
-    waLink: waLink
+    waLink: waLink,
+    _internos: { tenantIdActual: function () { return tenantId; }, fb: function () { return fb; } }
   };
 })();
