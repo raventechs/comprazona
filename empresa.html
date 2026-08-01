@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ARCHIVO: empresa.html
-  VERSIÓN: v0.2
+  VERSIÓN: v0.5
   FECHA: 01/08/2026
   PROYECTO: RavenMarket — Panel Empresa | RavenTechs
   CHANGELOG:
@@ -236,6 +236,7 @@
 </nav>
 
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script src="core.js"></script>
@@ -378,7 +379,7 @@
     lista.forEach(function (p) {
       var E = ESTADOS[p.estado] || ESTADOS.enviado;
       var lineas = p.items.map(function (it) {
-        return '▪ ' + it.cant + ' x ' + it.nombre + ' — ' + RM.formatPesos(it.precio * it.cant);
+        return '▪ ' + it.cant + ' x ' + RM.sanitizar(it.nombre) + ' — ' + RM.formatPesos(it.precio * it.cant);
       }).join('<br>');
       var telCliente = p.clienteTelefono
         ? '<a class="btn-wa-cli" target="_blank" rel="noopener" href="' +
@@ -387,14 +388,14 @@
           '">💬 WhatsApp del cliente</a>'
         : '';
       html += '<div class="pedido e-' + p.estado + '">' +
-        '<div class="ped-cab"><span class="ped-cod">#' + p.codigo +
-        (p.clienteNombre ? ' · ' + p.clienteNombre : '') + '</span>' +
+        '<div class="ped-cab"><span class="ped-cod">#' + RM.sanitizar(p.codigo) +
+        (p.clienteNombre ? ' · ' + RM.sanitizar(p.clienteNombre) : '') + '</span>' +
         '<span class="pill ' + E.pill + '">' + E.texto + '</span></div>' +
         '<div class="ped-hora">🕐 ' + (p.fechaTexto || '') + '</div>' +
         '<div class="ped-lineas">' + lineas + '</div>' +
-        '<div class="ped-dir">📍 ' + p.direccion +
+        '<div class="ped-dir">📍 ' + RM.sanitizar(p.direccion) +
         (p.geo ? ' · <a target="_blank" rel="noopener" href="https://maps.google.com/?q=' + p.geo.lat + ',' + p.geo.lng + '">ver mapa</a>' : '') + '</div>' +
-        (p.nota ? '<div class="ped-nota">📝 ' + p.nota + '</div>' : '') +
+        (p.nota ? '<div class="ped-nota">📝 ' + RM.sanitizar(p.nota) + '</div>' : '') +
         telCliente +
         '<div class="ped-pie"><span class="ped-tot">' + RM.formatPesos(p.total) + '</span>' +
         (E.accion
