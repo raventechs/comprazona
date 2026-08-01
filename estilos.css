@@ -1,9 +1,10 @@
 /*
   ARCHIVO: estilos.css
-  VERSIÓN: v0.2
+  VERSIÓN: v0.3
   FECHA: 01/08/2026
   PROYECTO: RavenMarket — base visual compartida | RavenTechs
   CHANGELOG:
+  - v0.3 (01/08/2026): Estilos carrito animado header y splash.
   - v0.2 (01/08/2026): Chip de sesión (login Google) compartido entre apps y pantalla de acceso.
   - v0.1 (01/08/2026): Base mobile-first. Branding por variables CSS runtime.
 */
@@ -133,3 +134,24 @@ main{max-width:560px;margin:0 auto;padding:16px}
 .pantalla-acceso .ico{font-size:52px;display:block;margin-bottom:14px}
 .pantalla-acceso h2{font-size:20px;font-weight:800;margin-bottom:8px}
 .pantalla-acceso p{color:var(--c-suave);font-size:14.5px;margin-bottom:22px}
+
+/* ---- Carrito animado (v0.3) ---- */
+.carrito-wrap{display:inline-flex;align-items:center;gap:8px}
+.carrito-header{width:34px;height:31px;flex-shrink:0;animation:oscilar-h 1.8s ease-in-out infinite}
+@keyframes oscilar-h{
+  0%,100%{transform:translateX(0)}
+  30%{transform:translateX(4px)}
+  70%{transform:translateX(-4px)}
+}
+.carrito-header .rueda-izq{transform-box:fill-box;transform-origin:center;animation:girar-r .65s linear infinite}
+.carrito-header .rueda-der{transform-box:fill-box;transform-origin:center;animation:girar-r .65s linear infinite}
+.carrito-splash{width:96px;height:86px;margin:0 auto 18px;display:block;animation:rodar-s 2.4s ease-in-out infinite}
+@keyframes rodar-s{
+  0%{transform:translateX(-14px)}
+  45%{transform:translateX(14px)}
+  55%{transform:translateX(14px)}
+  100%{transform:translateX(-14px)}
+}
+.carrito-splash .rueda-izq{transform-box:fill-box;transform-origin:center;animation:girar-r .55s linear infinite}
+.carrito-splash .rueda-der{transform-box:fill-box;transform-origin:center;animation:girar-r .55s linear infinite}
+@keyframes girar-r{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
