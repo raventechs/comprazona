@@ -1,13 +1,15 @@
 <!DOCTYPE html>
 <!--
   ARCHIVO: setup.html
-  VERSIÓN: v0.1
+  VERSIÓN: v0.3
   FECHA: 01/08/2026
-  PROYECTO: RavenMarket — Inicialización del tenant (solo super admin) | RavenTechs
+  PROYECTO: CompraZona — Inicialización del tenant (solo super admin) | RavenTechs
   CHANGELOG:
-  - v0.1 (01/08/2026): Página de un solo uso. Login con Google, verificación de super admin
-    y creación del tenant inicial (garrafas-agua) en Firestore con categorías, empresas y
-    productos semilla desde RM_DEMO. Protegida por email: cualquier otra cuenta no puede usarla.
+  - v0.3 (01/08/2026): Login con POPUP (no redirect) — setup es de uso único desde
+    la compu; popup es más confiable en desktop. Fix de loop de redirect. Título y
+    textos actualizados a CompraZona.
+  - v0.2 (01/08/2026): Nombre CompraZona.
+  - v0.1 (01/08/2026): Creación inicial con seed Firestore.
 -->
 <html lang="es">
 <head>
@@ -19,14 +21,17 @@
 <style>
 .paso{background:var(--c-tarjeta);border:1.5px solid var(--c-borde);border-radius:var(--radio);padding:16px;margin-bottom:12px;font-size:14.5px}
 .paso b{display:block;margin-bottom:4px}
-#log{font-family:ui-monospace,monospace;font-size:12.5px;background:#26221D;color:#C9F5D2;border-radius:12px;padding:14px;white-space:pre-wrap;display:none;margin-top:14px;line-height:1.7}
+#log{font-family:ui-monospace,monospace;font-size:12.5px;background:#26221D;color:#C9F5D2;
+     border-radius:12px;padding:14px;white-space:pre-wrap;display:none;margin-top:14px;line-height:1.7}
 </style>
 </head>
 <body>
 <div class="pantalla-acceso" id="contenido">
   <span class="ico">⚙️</span>
-  <h2>Inicialización de RavenMarket</h2>
-  <p>Crea el tenant <b>garrafas-agua</b> en Firestore con los datos semilla (categorías, empresas demo y productos). Solo el super administrador puede ejecutarlo.</p>
+  <h2>Inicialización de CompraZona</h2>
+  <p>Crea el tenant <b>garrafas-agua</b> en Firestore con los datos semilla
+     (categorías, empresas demo y productos).<br>
+     Solo el super administrador puede ejecutarlo.</p>
   <button class="btn-principal" id="btnAccion">Ingresar con Google</button>
   <div id="log"></div>
 </div>
@@ -39,69 +44,103 @@
 (function () {
   var $ = function (id) { return document.getElementById(id); };
   var usuario = null;
-  var fb = RM._internos.fb;
+  var app, auth, db;
 
   function log(txt) {
     var el = $('log');
     el.style.display = 'block';
     el.textContent += txt + '\n';
+    el.scrollTop = el.scrollHeight;
   }
 
-  RM.onAuth(function (u) {
+  // Inicializar Firebase directamente (popup, sin pasar por RM.login)
+  try {
+    app  = firebase.initializeApp(RM_CONFIG.FIREBASE);
+    auth = firebase.auth();
+    db   = firebase.firestore();
+  } catch (e) {
+    log('Error inicializando Firebase: ' + e.message);
+  }
+
+  auth.onAuthStateChanged(function (u) {
     usuario = u;
-    if (!u) { $('btnAccion').textContent = 'Ingresar con Google'; return; }
+    if (!u) {
+      $('btnAccion').textContent = 'Ingresar con Google';
+      $('btnAccion').disabled = false;
+      return;
+    }
     if (u.email !== RM_CONFIG.SUPER_ADMIN) {
       $('btnAccion').style.display = 'none';
-      log('⛔ La cuenta ' + u.email + ' no tiene permisos para inicializar la plataforma.');
+      log('⛔  La cuenta ' + u.email + ' no tiene permisos.');
       return;
     }
     $('btnAccion').textContent = '🚀 Crear datos iniciales del tenant';
+    $('btnAccion').disabled = false;
   });
 
   $('btnAccion').addEventListener('click', function () {
+    // Paso 1: login con POPUP (esta página es solo de compu)
     if (!usuario) {
-      RM.login(function (e) { if (e) alert('No se pudo ingresar: ' + e); });
+      $('btnAccion').disabled = true;
+      $('btnAccion').textContent = 'Abriendo Google…';
+      var provider = new firebase.auth.GoogleAuthProvider();
+      auth.signInWithPopup(provider)
+        .then(function (res) { usuario = res.user; })
+        .catch(function (e) {
+          log('Error de login: ' + e.message);
+          $('btnAccion').textContent = 'Ingresar con Google';
+          $('btnAccion').disabled = false;
+        });
       return;
     }
+
+    // Paso 2: seed
     if (usuario.email !== RM_CONFIG.SUPER_ADMIN) return;
     $('btnAccion').disabled = true;
     log('Iniciando seed del tenant "' + RM_DEMO.tenant.slug + '"…');
 
-    var db = fb().db;
     var batch = db.batch();
     var tRef = db.collection('tenants').doc(RM_DEMO.tenant.slug);
 
     batch.set(tRef, RM_DEMO.tenant);
+
     RM_DEMO.categorias.forEach(function (c) {
-      var data = { nombre: c.nombre, icono: c.icono, orden: c.orden, activa: c.activa, sinonimos: c.sinonimos };
-      batch.set(tRef.collection('categorias').doc(c.id), data);
+      batch.set(tRef.collection('categorias').doc(c.id),
+        { nombre: c.nombre, icono: c.icono, orden: c.orden, activa: c.activa, sinonimos: c.sinonimos });
     });
+
     RM_DEMO.empresas.forEach(function (e) {
       var data = {
-        nombre: e.nombre, categorias: e.categorias, whatsapp: e.whatsapp, direccion: e.direccion,
-        geo: e.geo, tiempoEstimadoMin: e.tiempoEstimadoMin, ratingProm: e.ratingProm,
-        ratingCant: e.ratingCant, destacada: e.destacada, activa: e.activa, horario: e.horario
+        nombre: e.nombre, categorias: e.categorias, whatsapp: e.whatsapp,
+        direccion: e.direccion, geo: e.geo, tiempoEstimadoMin: e.tiempoEstimadoMin,
+        ratingProm: e.ratingProm, ratingCant: e.ratingCant,
+        destacada: e.destacada, activa: e.activa, horario: e.horario
       };
       batch.set(tRef.collection('empresas').doc(e.id), data);
       (RM_DEMO.productos[e.id] || []).forEach(function (p) {
-        batch.set(tRef.collection('empresas').doc(e.id).collection('productos').doc(p.id),
-          { nombre: p.nombre, precio: p.precio, categoria: p.categoria, activo: p.activo });
+        batch.set(
+          tRef.collection('empresas').doc(e.id).collection('productos').doc(p.id),
+          { nombre: p.nombre, precio: p.precio, categoria: p.categoria, activo: p.activo }
+        );
       });
     });
 
-    batch.commit().then(function () {
-      log('✅ Tenant creado con ' + RM_DEMO.categorias.length + ' categorías, ' +
-          RM_DEMO.empresas.length + ' empresas y sus productos.');
-      log('');
-      log('Listo. Abrí index.html (app cliente) y empresa.html (panel).');
-      log('Este archivo queda protegido por email: solo tu cuenta puede volver a ejecutarlo.');
-      RM.limpiarCache();
-      $('btnAccion').textContent = '✅ Seed completado';
-    }).catch(function (e) {
-      log('❌ Error: ' + (e.message || e));
-      log('Revisá que las reglas de Firestore estén publicadas y que tu cuenta sea la de super admin.');
-      $('btnAccion').disabled = false;
-    });
+    batch.commit()
+      .then(function () {
+        log('✅  ' + RM_DEMO.categorias.length + ' categorías creadas.');
+        log('✅  ' + RM_DEMO.empresas.length + ' empresas con sus productos.');
+        log('');
+        log('¡Listo! Ahora podés abrir la app cliente y el panel empresa.');
+        log('Este botón queda bloqueado — el seed ya está en Firestore.');
+        $('btnAccion').textContent = '✅ Seed completado';
+        RM.limpiarCache();
+      })
+      .catch(function (e) {
+        log('❌  Error: ' + (e.message || e));
+        log('Verificá que las reglas de Firestore estén publicadas.');
+        $('btnAccion').disabled = false;
+        $('btnAccion').textContent = 'Reintentar seed';
+      });
   });
 })();
 </script>
