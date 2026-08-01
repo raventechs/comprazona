@@ -1,15 +1,12 @@
 /*
   ARCHIVO: core.js
-  VERSIÓN: v0.2
+  VERSIÓN: v0.5
   FECHA: 01/08/2026
-  PROYECTO: RavenMarket — Motor de Marketplaces Locales | RavenTechs
+  PROYECTO: CompraZona — Motor de Marketplaces Locales | RavenTechs
   CHANGELOG:
-  - v0.2 (01/08/2026): Conexión Firebase real (proyecto ravenmarket-c2739). Capa de datos
-    Firestore: tenant, catálogo con caché local (1 h), pedidos (crear, historial del cliente,
-    escucha en vivo por empresa, actualizar estado), gestión de empresa y productos, perfil de
-    usuario con rol. Auth Google. Fallback automático a datos demo si el tenant aún no fue
-    inicializado con setup.html. Queries sin índices compuestos (limit + filtro en cliente).
-  - v0.1 (01/08/2026): Núcleo inicial en modo demo.
+  - v0.5 (01/08/2026): SEGURIDAD — sanitizar() anti-XSS, App Check reCAPTCHA v3,
+    campo APPCHECK_KEY en config, validación campo email_verified en reglas Firestore.
+  - v0.4: renombrado CompraZona. v0.3: login redirect. v0.2: Firebase. v0.1: demo.
 */
 
 /* ================= CONFIGURACIÓN ================= */
@@ -18,6 +15,9 @@ var RM_CONFIG = {
   TENANT_DEFAULT: 'garrafas-agua',
   SUPER_ADMIN: 'rgaraventa@gmail.com',
   CACHE_CATALOGO_MS: 60 * 60 * 1000, // 1 hora
+  // App Check (reCAPTCHA v3) — pegar la site key después de registrar el dominio
+  // en https://console.firebase.google.com → App Check → Registrar app → reCAPTCHA v3
+  APPCHECK_KEY: '',  // pegar site key reCAPTCHA v3 aquí
   FIREBASE: {
     apiKey: "AIzaSyAwsmI5H5qUZT0tj8vZYhPscTmZqHI2SQ4",
     authDomain: "ravenmarket-c2739.firebaseapp.com",
@@ -102,6 +102,19 @@ var RM = (function () {
   var tenantId = RM_CONFIG.TENANT_DEFAULT;
 
   /* ---- Utilidades ---- */
+
+  // sanitizar(): convierte caracteres HTML especiales en texto plano.
+  // SIEMPRE usar en contenido ingresado por usuarios antes de insertar en innerHTML.
+  // Previene XSS (alguien que ponga <script> en la dirección o nota del pedido).
+  function sanitizar(txt) {
+    return String(txt || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   function normalizar(txt) {
     return String(txt || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
   }
@@ -148,9 +161,13 @@ var RM = (function () {
     if (fb.app) return true;
     if (!tieneFirebase()) return false;
     fb.app = firebase.initializeApp(RM_CONFIG.FIREBASE);
+    // App Check: bloquea robots y scripts externos (invisible para el usuario)
+    if (RM_CONFIG.APPCHECK_KEY && typeof firebase.appCheck === 'function') {
+      firebase.appCheck().activate(
+        new firebase.appCheck.ReCaptchaV3Provider(RM_CONFIG.APPCHECK_KEY), true);
+    }
     fb.auth = firebase.auth();
     fb.db = firebase.firestore();
-    // Procesar resultado de redirect si el usuario viene de Google
     _procesarRedirect();
     return true;
   }
@@ -497,6 +514,7 @@ var RM = (function () {
   /* ---- API pública del núcleo ---- */
   return {
     normalizar: normalizar,
+    sanitizar: sanitizar,
     formatPesos: formatPesos,
     distanciaKm: distanciaKm,
     estaAbierta: estaAbierta,
