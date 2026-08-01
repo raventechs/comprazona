@@ -1,14 +1,17 @@
 <!DOCTYPE html>
 <!--
   ARCHIVO: index.html
-  VERSIÓN: v0.3
+  VERSIÓN: v0.4
   FECHA: 01/08/2026
   PROYECTO: RavenMarket — App Cliente (marketplace público) | RavenTechs
   CHANGELOG:
-  - v0.3 (01/08/2026): Modal de bienvenida al primer ingreso pidiendo activar ubicación.
-    Se muestra solo una vez (localStorage rm_loc_preguntado). Si acepta, activa GPS y
-    recarga el ranking. Si omite, entra directo al catálogo sin GPS.
-  - v0.2 (01/08/2026): Conexión Firebase. Login con Google al confirmar el pedido, pedidos
+  - v0.4 (01/08/2026): Pantalla de bienvenida a pantalla completa al primer ingreso.
+    Lenguaje simple para usuarios con poca experiencia tecnológica. Pide ubicación y
+    notificaciones con explicaciones en criollo. Cámara se declara pero se pide en el
+    momento de uso (foto de entrega). Un solo botón "Dale, activá todo". No vuelve a
+    aparecer nunca más (localStorage rm_permisos_ok). Reemplaza el modal anterior.
+  - v0.3 (01/08/2026): Modal de bienvenida/ubicación primera visita.
+  - v0.2 (01/08/2026): Conexión Firebase, login Google, pedidos en la nube.
     registrados en Firestore, historial del cliente desde la nube, ubicación GPS opcional
     incluida en el pedido (link de Google Maps en el WhatsApp). Fallback demo automático si
     el tenant todavía no fue inicializado con setup.html.
@@ -21,9 +24,89 @@
 <title>RavenMarket</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="estilos.css">
-</head>
+<style>
+/* ---- Pantalla de bienvenida (v0.4) ---- */
+#pantallaPermisos{
+  position:fixed;inset:0;z-index:100;
+  background:var(--c-fondo);
+  display:flex;flex-direction:column;align-items:center;
+  padding:0 22px calc(30px + env(safe-area-inset-bottom));
+  overflow-y:auto;
+}
+.bv-logo{width:72px;height:72px;border-radius:22px;background:var(--c-primario);
+  display:flex;align-items:center;justify-content:center;
+  font-size:38px;margin:40px 0 14px;box-shadow:0 6px 20px rgba(242,123,19,.3)}
+.bv-titulo{font-size:22px;font-weight:800;text-align:center;margin-bottom:6px}
+.bv-subtitulo{font-size:15px;color:var(--c-suave);text-align:center;margin-bottom:28px;line-height:1.5}
+.perm-card{
+  width:100%;max-width:400px;
+  background:var(--c-tarjeta);border:1.5px solid var(--c-borde);
+  border-radius:16px;padding:16px 18px;margin-bottom:12px;
+  display:flex;align-items:center;gap:16px;
+  box-shadow:var(--sombra)
+}
+.perm-ico{font-size:34px;flex-shrink:0;width:46px;text-align:center}
+.perm-txt .t1{font-weight:800;font-size:15.5px;margin-bottom:3px}
+.perm-txt .t2{font-size:13px;color:var(--c-suave);line-height:1.45}
+.bv-btn{
+  width:100%;max-width:400px;margin-top:10px;
+  background:var(--c-primario);color:#fff;
+  font-size:18px;font-weight:800;
+  padding:18px;border-radius:16px;
+  box-shadow:0 4px 16px rgba(242,123,19,.35);
+  border:none;cursor:pointer;
+}
+.bv-skip{
+  margin-top:16px;font-size:13.5px;color:var(--c-suave);
+  background:none;border:none;cursor:pointer;font-weight:600;
+  padding:10px;
+}
+.bv-estado{font-size:13.5px;color:var(--c-suave);margin-top:14px;min-height:20px;font-weight:600;text-align:center}
+/* tick animado cuando se activa un permiso */
+.perm-card.ok{border-color:var(--c-ok)}
+.perm-card.ok .perm-ico::after{content:'✅';font-size:18px;position:absolute;bottom:-4px;right:-4px}
+.perm-card .perm-ico-wrap{position:relative;width:46px;flex-shrink:0}
+</style>
 <body>
+
+<!-- ======== PANTALLA DE BIENVENIDA (primera visita) ======== -->
+<div id="pantallaPermisos" style="display:none">
+
+  <div class="bv-logo" id="bvLogo">🔥</div>
+  <div class="bv-titulo" id="bvTitulo">¡Bienvenido/a!</div>
+  <div class="bv-subtitulo" id="bvSubtitulo">
+    Para que todo funcione bien<br>necesitamos tu permiso para tres cosas:
+  </div>
+
+  <div class="perm-card" id="cardUbicacion">
+    <div class="perm-ico-wrap"><div class="perm-ico">📍</div></div>
+    <div class="perm-txt">
+      <div class="t1">Tu ubicación</div>
+      <div class="t2">Para mostrarte las empresas más cerca de tu casa primero</div>
+    </div>
+  </div>
+
+  <div class="perm-card" id="cardNotificaciones">
+    <div class="perm-ico-wrap"><div class="perm-ico">🔔</div></div>
+    <div class="perm-txt">
+      <div class="t1">Avisos en el teléfono</div>
+      <div class="t2">Para avisarte cuando tu pedido salió o llegó, sin que tengas que mirar la pantalla</div>
+    </div>
+  </div>
+
+  <div class="perm-card" id="cardCamara">
+    <div class="perm-ico-wrap"><div class="perm-ico">📷</div></div>
+    <div class="perm-txt">
+      <div class="t1">La cámara</div>
+      <div class="t2">Para que el repartidor saque una foto cuando entrega tu pedido</div>
+    </div>
+  </div>
+
+  <button class="bv-btn" id="btnAceptarTodo">Dale, activá todo ✓</button>
+  <div class="bv-estado" id="bvEstado"></div>
+  <button class="bv-skip" id="btnBvSaltar">Ahora no, entrar igual</button>
+
+</div>
 
 <div class="demo-banner" id="demoBanner" style="display:none">MODO DEMO — datos de ejemplo</div>
 
@@ -125,21 +208,6 @@
   </div>
 </div>
 
-<!-- Modal bienvenida / ubicación (primera visita) -->
-<div class="modal-fondo" id="modalBienvenida">
-  <div class="modal" style="text-align:center">
-    <div style="font-size:44px;margin-bottom:10px">📍</div>
-    <h3 style="margin-bottom:8px">¿Desde dónde pedís?</h3>
-    <p style="font-size:14px;color:var(--c-suave);margin-bottom:20px">
-      Activá tu ubicación y te mostramos primero las empresas más cercanas a vos.
-    </p>
-    <button class="btn-principal" id="btnMvUbicacion" style="width:100%;margin-bottom:10px">
-      📍 Activar mi ubicación
-    </button>
-    <button class="btn-sec" id="btnMvSaltar">Ahora no, ver todas las empresas</button>
-  </div>
-</div>
-
 <!-- Nav inferior -->
 <nav class="nav-inferior">
   <button data-ir="vInicio" class="activo" id="navInicio"><span class="ni">🏠</span>Inicio</button>
@@ -188,33 +256,89 @@
     var primeraCat = datos.categorias[0];
     if (primeraCat) $('brandLogo').textContent = primeraCat.icono;
     pintarCategorias();
-    mostrarModalUbicacion();
+    mostrarPantallaPermisos(datos.tenant);
   });
 
-  /* ---------- Modal de ubicación (primera visita) ---------- */
-  function mostrarModalUbicacion() {
-    if (localStorage.getItem('rm_loc_preguntado')) return;
-    if (!navigator.geolocation) return;
-    $('modalBienvenida').classList.add('abierto');
+  /* -------- PANTALLA DE BIENVENIDA / PERMISOS (v0.4) -------- */
+  function mostrarPantallaPermisos(tenant) {
+    if (localStorage.getItem('rm_permisos_ok')) return; // ya pasó
+    var pp = $('pantallaPermisos');
+    // Aplicar branding
+    $('bvLogo').textContent = DATOS.categorias[0] ? DATOS.categorias[0].icono : '🛒';
+    $('bvTitulo').textContent = '¡Bienvenido/a a ' + tenant.nombre + '!';
+    pp.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
   }
 
-  $('btnMvUbicacion').addEventListener('click', function () {
-    localStorage.setItem('rm_loc_preguntado', '1');
-    $('modalBienvenida').classList.remove('abierto');
-    $('btnMvUbicacion').textContent = '📍 Obteniendo ubicación…';
-    navigator.geolocation.getCurrentPosition(function (pos) {
-      userGeo = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      $('btnUbicacion').textContent = '✅ Ubicación activada — ordenamos por cercanía';
-      // Si hay una categoría activa, refresca el ranking con la ubicación nueva
-      if (catActual) abrirCategoria(catActual.id);
-    }, function () {
-      $('btnUbicacion').textContent = '📍 Usar mi ubicación para ordenar por cercanía';
-    });
+  function cerrarPantallaPermisos() {
+    localStorage.setItem('rm_permisos_ok', '1');
+    $('pantallaPermisos').style.display = 'none';
+    document.body.style.overflow = '';
+  }
+
+  function marcarCard(id) {
+    var card = $(id);
+    card.classList.add('ok');
+    card.style.borderColor = 'var(--c-ok)';
+    card.querySelector('.perm-ico').textContent = '✅';
+  }
+
+  $('btnAceptarTodo').addEventListener('click', function () {
+    var btn = this;
+    btn.disabled = true;
+    btn.textContent = 'Activando…';
+    var estado = $('bvEstado');
+
+    /* Paso 1: Ubicación */
+    estado.textContent = '📍 Activando tu ubicación…';
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        function (pos) {
+          userGeo = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          marcarCard('cardUbicacion');
+          $('btnUbicacion').textContent = '✅ Ubicación activada';
+          pedirNotificaciones();
+        },
+        function () {
+          // El usuario negó o no está disponible — seguimos igual
+          estado.textContent = '📍 Ubicación no disponible, continuamos igual.';
+          pedirNotificaciones();
+        },
+        { timeout: 8000 }
+      );
+    } else {
+      pedirNotificaciones();
+    }
+
+    /* Paso 2: Notificaciones */
+    function pedirNotificaciones() {
+      estado.textContent = '🔔 Activando los avisos…';
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission().then(function (permiso) {
+          if (permiso === 'granted') marcarCard('cardNotificaciones');
+          terminar();
+        }).catch(function () { terminar(); });
+      } else {
+        if ('Notification' in window && Notification.permission === 'granted') marcarCard('cardNotificaciones');
+        terminar();
+      }
+    }
+
+    /* Paso 3: Cámara — se declara acá pero se pide cuando se usa (foto de entrega).
+       Evitamos pedirla sin un caso de uso real porque los navegadores la bloquean
+       automáticamente si el usuario no entiende para qué es. */
+    function terminar() {
+      marcarCard('cardCamara'); // la mostramos como "ok" — se pedirá al momento de uso
+      estado.textContent = '¡Todo listo! Entrás ahora 🎉';
+      btn.textContent = '¡Entrar!';
+      btn.disabled = false;
+      btn.style.background = 'var(--c-ok)';
+      btn.onclick = cerrarPantallaPermisos;
+    }
   });
 
-  $('btnMvSaltar').addEventListener('click', function () {
-    localStorage.setItem('rm_loc_preguntado', '1');
-    $('modalBienvenida').classList.remove('abierto');
+  $('btnBvSaltar').addEventListener('click', function () {
+    cerrarPantallaPermisos();
   });
 
   /* ---------- Sesión ---------- */
