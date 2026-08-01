@@ -1,11 +1,11 @@
 /*
   ARCHIVO: estilos.css
-  VERSIÓN: v0.1
+  VERSIÓN: v0.2
   FECHA: 01/08/2026
   PROYECTO: RavenMarket — base visual compartida | RavenTechs
   CHANGELOG:
-  - v0.1 (01/08/2026): Base mobile-first. Branding por variables CSS que el motor
-    pisa en runtime desde la config del tenant (colores primario/secundario/fondo).
+  - v0.2 (01/08/2026): Chip de sesión (login Google) compartido entre apps y pantalla de acceso.
+  - v0.1 (01/08/2026): Base mobile-first. Branding por variables CSS runtime.
 */
 :root{
   --c-primario:#F27B13;
@@ -124,3 +124,12 @@ main{max-width:560px;margin:0 auto;padding:16px}
 .nav-inferior button{flex:1;padding:10px 0 9px;text-align:center;font-size:11.5px;font-weight:700;color:var(--c-suave)}
 .nav-inferior button .ni{display:block;font-size:21px;margin-bottom:1px}
 .nav-inferior button.activo{color:var(--c-primario)}
+
+/* ---- Sesión (v0.2) ---- */
+.fila-header{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.sesion-chip{border:1.5px solid var(--c-borde);background:var(--c-fondo);border-radius:20px;padding:7px 13px;font-size:12.5px;font-weight:800;color:var(--c-texto);white-space:nowrap}
+.sesion-chip.entrar{border-color:var(--c-primario);color:var(--c-primario);background:#FFF2E3}
+.pantalla-acceso{max-width:560px;margin:0 auto;padding:60px 24px;text-align:center}
+.pantalla-acceso .ico{font-size:52px;display:block;margin-bottom:14px}
+.pantalla-acceso h2{font-size:20px;font-weight:800;margin-bottom:8px}
+.pantalla-acceso p{color:var(--c-suave);font-size:14.5px;margin-bottom:22px}
