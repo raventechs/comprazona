@@ -150,6 +150,8 @@ var RM = (function () {
     fb.app = firebase.initializeApp(RM_CONFIG.FIREBASE);
     fb.auth = firebase.auth();
     fb.db = firebase.firestore();
+    // Procesar resultado de redirect si el usuario viene de Google
+    _procesarRedirect();
     return true;
   }
 
@@ -164,9 +166,25 @@ var RM = (function () {
   function login(cb) {
     if (!initFirebase()) { cb('Firebase no disponible'); return; }
     var provider = new firebase.auth.GoogleAuthProvider();
-    fb.auth.signInWithPopup(provider).then(function (res) {
-      asegurarPerfil(res.user, function () { cb(null, res.user); });
-    }).catch(function (e) { cb(e.message || 'No se pudo iniciar sesión'); });
+    // Redirect en lugar de popup: más natural en móvil, no hay ventana emergente.
+    // El usuario va a Google, elige su cuenta y vuelve solo a la app.
+    // getRedirectResult() en initFirebase captura el resultado al volver.
+    localStorage.setItem('rm_login_pending', '1');
+    firebase.auth().signInWithRedirect(provider);
+    // cb nunca se llama acá — el flujo sigue en onAuth tras el redirect
+  }
+
+  function _procesarRedirect() {
+    if (!initFirebase()) return;
+    fb.auth.getRedirectResult().then(function (res) {
+      if (res && res.user) {
+        localStorage.removeItem('rm_login_pending');
+        asegurarPerfil(res.user, function () {});
+      }
+    }).catch(function (e) {
+      localStorage.removeItem('rm_login_pending');
+      console.warn('Redirect result error:', e.message);
+    });
   }
 
   function logout(cb) {
@@ -488,8 +506,7 @@ var RM = (function () {
     onAuth: onAuth,
     login: login,
     logout: logout,
-    perfilUsuario: perfilUsuario,
-    buscarCategoria: buscarCategoria,
+    perfilUsuario: perfilUsuario,    buscarCategoria: buscarCategoria,
     rankear: rankear,
     codigoPedido: codigoPedido,
     crearPedido: crearPedido,
