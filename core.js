@@ -34,8 +34,8 @@ var RM_CONFIG = {
 var RM_DEMO = {
   tenant: {
     slug: 'garrafas-agua',
-    nombre: 'Garrafas & Agua Catán',
-    lema: 'Pedí y te lo llevan',
+    nombre: 'CompraZona Catán',
+    lema: 'Tu zona, tus productos',
     colores: { primario: '#F27B13', secundario: '#2E9FC4', fondo: '#FAF8F5' },
     moneda: 'ARS',
     modulosActivos: ['garrafas', 'agua'],
