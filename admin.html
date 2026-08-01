@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<!--
+  ARCHIVO: admin.html
+  VERSIÓN: v0.1
+  FECHA: 01/08/2026
+  PROYECTO: RavenMarket — Panel Super Admin | RavenTechs
+  CHANGELOG:
+  - v0.1 (01/08/2026): Panel de super administración del marketplace. Solo accesible con
+    rgaraventa@gmail.com. Tres secciones: Pedidos (todos los pedidos de todas las empresas
+    en vivo, filtros por empresa/estado, métricas del día), Empresas (ver, activar/desactivar,
+    cambiar plan y destacada) y Tenant (configuración del motor: nombre, zona, scoring).
+    Pedidos en vivo vía onSnapshot por empresa, consolidados en una sola vista.
+-->
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Super Admin — RavenMarket</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="estilos.css">
+<style>
+.kpi-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:18px}
+.kpi{background:var(--c-tarjeta);border:1.5px solid var(--c-borde);border-radius:var(--radio);padding:14px;text-align:center}
+.kpi .num{font-family:'Chakra Petch',sans-serif;font-size:28px;font-weight:700;color:var(--c-primario)}
+.kpi .lab{font-size:12px;color:var(--c-suave);font-weight:700;margin-top:2px}
+.filtros-wrap{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.filtros-wrap select{flex:1;min-width:120px;padding:9px 10px;border:1.5px solid var(--c-borde);border-radius:var(--radio);background:var(--c-tarjeta);font-family:inherit;font-size:13.5px;font-weight:700}
+.pedido{background:var(--c-tarjeta);border:1.5px solid var(--c-borde);border-left-width:5px;border-radius:var(--radio);padding:14px;margin-bottom:11px;box-shadow:var(--sombra)}
+.pedido.e-enviado{border-left-color:var(--c-primario)}
+.pedido.e-recibido{border-left-color:#3E7BC0}
+.pedido.e-encamino{border-left-color:var(--c-secundario)}
+.pedido.e-entregado{border-left-color:var(--c-ok)}
+.pedido.e-cancelado{border-left-color:#B4553B;opacity:.75}
+.ped-cab{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px}
+.ped-cod{font-weight:800;font-size:14.5px}
+.pill{font-size:11px;font-weight:800;padding:4px 10px;border-radius:20px;white-space:nowrap}
+.p-enviado{background:#FFF2E3;color:#A85B12}
+.p-recibido{background:#E7EEF8;color:#2C5E9E}
+.p-encamino{background:#E7F3F8;color:#1E6E8C}
+.p-entregado{background:#E7F4EA;color:var(--c-ok)}
+.p-cancelado{background:#F6EAE6;color:#B4553B}
+.ped-emp-tag{font-size:12px;font-weight:800;color:var(--c-secundario);margin-bottom:4px}
+.ped-hora{font-size:12px;color:var(--c-suave);font-weight:600}
+.ped-lineas{font-size:13px;margin:5px 0;line-height:1.6;color:var(--c-texto)}
+.ped-dir{font-size:12.5px;color:var(--c-suave)}
+.ped-tot{font-weight:800;font-size:15px;margin-top:8px}
+.emp-card-a{background:var(--c-tarjeta);border:1.5px solid var(--c-borde);border-radius:var(--radio);padding:14px;margin-bottom:11px;box-shadow:var(--sombra)}
+.emp-card-a .nom{font-weight:800;font-size:16px}
+.emp-card-a .dir{font-size:12.5px;color:var(--c-suave);margin:3px 0 10px}
+.emp-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.tag-plan{font-size:12px;font-weight:800;padding:5px 10px;border-radius:20px;background:#FFF2E3;color:#A85B12;border:1px solid #F5DFC4}
+.tag-activa{font-size:12px;font-weight:800;padding:5px 10px;border-radius:20px;background:#E7F4EA;color:var(--c-ok)}
+.tag-inactiva{font-size:12px;font-weight:800;padding:5px 10px;border-radius:20px;background:#F6EAE6;color:#B4553B}
+.tag-dest{font-size:12px;font-weight:800;padding:5px 10px;border-radius:20px;background:#E7F3F8;color:var(--c-secundario)}
+.emp-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.mini-btn{border:1.5px solid var(--c-borde);border-radius:10px;padding:8px 12px;font-weight:800;font-size:12.5px;background:var(--c-tarjeta)}
+.cfg-seccion{background:var(--c-tarjeta);border:1.5px solid var(--c-borde);border-radius:var(--radio);padding:16px;margin-bottom:14px}
+.cfg-seccion h3{font-size:15px;font-weight:800;margin-bottom:12px}
+.peso-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.peso-row label{font-size:13.5px;font-weight:700;color:var(--c-texto)}
+.peso-row input{width:70px;padding:8px 10px;border:1.5px solid var(--c-borde);border-radius:10px;font-weight:800;font-size:14px;text-align:center;background:var(--c-tarjeta)}
+.guardado{position:fixed;left:50%;transform:translateX(-50%);bottom:130px;background:#26221D;color:#fff;font-size:13px;font-weight:700;padding:9px 16px;border-radius:20px;z-index:50;display:none}
+.badge-live{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--c-ok);margin-right:5px;animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+</style>
+</head>
+<body>
+
+<header class="app">
+  <div class="fila-header">
+    <div class="brand">
+      <div class="logo">🦅</div>
+      <div>
+        <h1 id="brandNombre">RavenMarket Admin</h1>
+        <div class="lema" id="brandLema">Super Administración</div>
+      </div>
+    </div>
+    <button class="sesion-chip" id="chipSesion" style="display:none"></button>
+  </div>
+</header>
+
+<!-- Pantalla de acceso -->
+<div class="pantalla-acceso" id="pAcceso" style="display:none">
+  <span class="ico">🦅</span>
+  <h2>Acceso restringido</h2>
+  <p>Este panel es exclusivo del super administrador de RavenMarket.</p>
+  <button class="btn-principal" id="btnLogin">Ingresar con Google</button>
+</div>
+
+<!-- Sin permisos -->
+<div class="pantalla-acceso" id="pSinPermisos" style="display:none">
+  <span class="ico">🔒</span>
+  <h2>Sin acceso</h2>
+  <p id="txtSinPermisos"></p>
+</div>
+
+<main id="panel" style="display:none">
+
+  <!-- ===== PEDIDOS ===== -->
+  <div class="vista activa" id="tPedidos">
+    <div class="kpi-grid" id="kpiGrid">
+      <div class="kpi"><div class="num" id="kpiNuevos">—</div><div class="lab">🔥 Nuevos</div></div>
+      <div class="kpi"><div class="num" id="kpiActivos">—</div><div class="lab">📋 Activos</div></div>
+      <div class="kpi"><div class="num" id="kpiEntregados">—</div><div class="lab">✅ Hoy entregados</div></div>
+      <div class="kpi"><div class="num" id="kpiTotal">—</div><div class="lab">💰 Total del día</div></div>
+    </div>
+    <div class="filtros-wrap">
+      <select id="filtroEmpresa"><option value="">Todas las empresas</option></select>
+      <select id="filtroEstado">
+        <option value="">Todos los estados</option>
+        <option value="enviado">Nuevos</option>
+        <option value="recibido">Tomados</option>
+        <option value="encamino">En camino</option>
+        <option value="entregado">Entregados</option>
+        <option value="cancelado">Cancelados</option>
+      </select>
+    </div>
+    <div style="font-size:12.5px;color:var(--c-suave);margin-bottom:12px;font-weight:600">
+      <span class="badge-live"></span>En vivo desde todas las empresas
+    </div>
+    <div id="listaPedidos"><div class="vacio">Cargando pedidos…</div></div>
+  </div>
+
+  <!-- ===== EMPRESAS ===== -->
+  <div class="vista" id="tEmpresas">
+    <div class="seccion-titulo" style="margin-bottom:14px">Empresas del marketplace</div>
+    <div id="listaEmpresas"></div>
+  </div>
+
+  <!-- ===== TENANT ===== -->
+  <div class="vista" id="tTenant">
+    <div class="seccion-titulo" style="margin-bottom:14px">Configuración del tenant</div>
+    <div class="cfg-seccion">
+      <h3>Datos generales</h3>
+      <div class="campo"><label>Nombre del marketplace</label><input id="cfgNombre" type="text"></div>
+      <div class="campo"><label>Lema</label><input id="cfgLema" type="text"></div>
+      <div class="campo"><label>Zona</label><input id="cfgZona" type="text"></div>
+    </div>
+    <div class="cfg-seccion">
+      <h3>Pesos del ranking (deben sumar 100)</h3>
+      <div class="peso-row"><label>💲 Precio</label><input id="pPrecio" type="number" min="0" max="100"></div>
+      <div class="peso-row"><label>📍 Distancia</label><input id="pDistancia" type="number" min="0" max="100"></div>
+      <div class="peso-row"><label>⭐ Rating</label><input id="pRating" type="number" min="0" max="100"></div>
+      <div class="peso-row"><label>⚡ Rapidez</label><input id="pRapidez" type="number" min="0" max="100"></div>
+      <div class="peso-row"><label>🏆 Boost destacada</label><input id="pBoost" type="number" min="0" max="30"></div>
+      <div id="sumaPesos" style="font-size:13px;color:var(--c-suave);margin-bottom:12px"></div>
+    </div>
+    <button class="btn-principal" id="btnGuardarTenant" style="width:100%">Guardar configuración</button>
+  </div>
+
+</main>
+
+<div class="guardado" id="toastGuardado">✓ Guardado</div>
+
+<nav class="nav-inferior" id="navInferior" style="display:none">
+  <button data-tab="tPedidos" class="activo"><span class="ni">📋</span>Pedidos <span id="badgePend"></span></button>
+  <button data-tab="tEmpresas"><span class="ni">🏪</span>Empresas</button>
+  <button data-tab="tTenant"><span class="ni">⚙️</span>Tenant</button>
+</nav>
+
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="core.js"></script>
+<script>
+/* ============ SUPER ADMIN v0.1 ============ */
+(function () {
+  var DATOS = null;
+  var todosLosPedidos = [];   // consolidado de todos los listeners
+  var escuchas = [];          // funciones para detener cada onSnapshot
+  var pedidosPorEmpresa = {}; // empId → lista
+  var ESTADOS = {
+    enviado:   { pill: 'p-enviado',   texto: 'Nuevo' },
+    recibido:  { pill: 'p-recibido',  texto: 'Tomado' },
+    encamino:  { pill: 'p-encamino',  texto: 'En camino' },
+    entregado: { pill: 'p-entregado', texto: 'Entregado' },
+    cancelado: { pill: 'p-cancelado', texto: 'Cancelado' }
+  };
+
+  var $ = function (id) { return document.getElementById(id); };
+  function mostrar(id, si) { $(id).style.display = si ? 'block' : 'none'; }
+  function toast() {
+    $('toastGuardado').style.display = 'block';
+    setTimeout(function () { $('toastGuardado').style.display = 'none'; }, 1400);
+  }
+  function hoy() {
+    var d = new Date(); d.setHours(0,0,0,0); return d.getTime();
+  }
+
+  /* ---------- Arranque ---------- */
+  RM.initTenant({ fresco: true }, function (err, datos) {
+    if (err) { alert('Error: ' + err); return; }
+    DATOS = datos;
+    $('brandNombre').textContent = datos.tenant.nombre;
+    RM.onAuth(function (u) {
+      pintarSesion(u);
+      decidirPantalla(u);
+    });
+  });
+
+  function pintarSesion(u) {
+    var chip = $('chipSesion');
+    if (!u) { chip.style.display = 'none'; return; }
+    chip.style.display = 'block';
+    chip.textContent = '👤 ' + (u.displayName || u.email || '').split(' ')[0] + ' · salir';
+    chip.onclick = function () {
+      if (confirm('¿Cerrar sesión?')) RM.logout(function () { window.location.reload(); });
+    };
+  }
+
+  function decidirPantalla(u) {
+    if (!u) { mostrar('pAcceso', true); mostrar('panel', false); mostrar('navInferior', false); return; }
+    if (u.email !== RM_CONFIG.SUPER_ADMIN) {
+      mostrar('pSinPermisos', true);
+      $('txtSinPermisos').textContent = 'La cuenta ' + u.email + ' no tiene acceso a este panel.';
+      return;
+    }
+    mostrar('pAcceso', false); mostrar('pSinPermisos', false);
+    mostrar('panel', true); mostrar('navInferior', true);
+    cargarEmpresas();
+    iniciarEscuchas();
+    pintarTenant();
+    pintarSelectorEmpresas();
+  }
+
+  $('btnLogin').addEventListener('click', function () {
+    RM.login(function (e) { if (e) alert('No se pudo ingresar: ' + e); });
+  });
+
+  /* ---------- Tabs ---------- */
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest('[data-tab]');
+    if (!t) return;
+    var vistas = document.querySelectorAll('.vista');
+    for (var i = 0; i < vistas.length; i++) vistas[i].classList.remove('activa');
+    $(t.getAttribute('data-tab')).classList.add('activa');
+    var navs = document.querySelectorAll('[data-tab]');
+    for (var j = 0; j < navs.length; j++) navs[j].classList.remove('activo');
+    t.classList.add('activo');
+    window.scrollTo(0, 0);
+  });
+
+  /* ---------- Escucha EN VIVO de pedidos de TODAS las empresas ---------- */
+  function iniciarEscuchas() {
+    escuchas.forEach(function (stop) { stop(); });
+    escuchas = [];
+    pedidosPorEmpresa = {};
+    DATOS.empresas.forEach(function (emp) {
+      pedidosPorEmpresa[emp.id] = [];
+      var stop = RM.escucharPedidosEmpresa(emp.id, function (err, lista) {
+        if (err) return;
+        pedidosPorEmpresa[emp.id] = lista;
+        consolidarYPintar();
+      });
+      if (stop) escuchas.push(stop);
+    });
+  }
+
+  function consolidarYPintar() {
+    todosLosPedidos = [];
+    Object.keys(pedidosPorEmpresa).forEach(function (eid) {
+      pedidosPorEmpresa[eid].forEach(function (p) {
+        if (!p._empNombre) {
+          DATOS.empresas.forEach(function (e) { if (e.id === eid) p._empNombre = e.nombre; });
+        }
+        todosLosPedidos.push(p);
+      });
+    });
+    todosLosPedidos.sort(function (a, b) { return b.ts - a.ts; });
+    pintarKPIs();
+    pintarPedidos();
+  }
+
+  function pintarKPIs() {
+    var hoyTs = hoy();
+    var hoyPeds = todosLosPedidos.filter(function (p) { return p.ts >= hoyTs; });
+    var nuevos = hoyPeds.filter(function (p) { return p.estado === 'enviado'; }).length;
+    var activos = todosLosPedidos.filter(function (p) {
+      return ['enviado','recibido','encamino'].indexOf(p.estado) !== -1;
+    }).length;
+    var entregados = hoyPeds.filter(function (p) { return p.estado === 'entregado'; }).length;
+    var totalDia = hoyPeds.filter(function (p) { return p.estado !== 'cancelado'; })
+                          .reduce(function (acc, p) { return acc + (p.total || 0); }, 0);
+    $('kpiNuevos').textContent = nuevos;
+    $('kpiActivos').textContent = activos;
+    $('kpiEntregados').textContent = entregados;
+    $('kpiTotal').textContent = RM.formatPesos(totalDia);
+    $('badgePend').textContent = activos ? '(' + activos + ')' : '';
+  }
+
+  function pintarSelectorEmpresas() {
+    var html = '<option value="">Todas las empresas</option>';
+    DATOS.empresas.forEach(function (e) {
+      html += '<option value="' + e.id + '">' + e.nombre + '</option>';
+    });
+    $('filtroEmpresa').innerHTML = html;
+  }
+
+  $('filtroEmpresa').addEventListener('change', pintarPedidos);
+  $('filtroEstado').addEventListener('change', pintarPedidos);
+
+  function pintarPedidos() {
+    var fEmp = $('filtroEmpresa').value;
+    var fEst = $('filtroEstado').value;
+    var lista = todosLosPedidos.filter(function (p) {
+      if (fEmp && p.empresaId !== fEmp) return false;
+      if (fEst && p.estado !== fEst) return false;
+      return true;
+    });
+    if (!lista.length) {
+      $('listaPedidos').innerHTML = '<div class="vacio"><span class="ico">📭</span>' +
+        (todosLosPedidos.length ? 'Ningún pedido con ese filtro.' : 'Todavía no hay pedidos. Cuando un cliente haga el primero, aparece acá al instante.') +
+        '</div>';
+      return;
+    }
+    var html = '';
+    lista.forEach(function (p) {
+      var E = ESTADOS[p.estado] || ESTADOS.enviado;
+      var lineas = (p.items || []).map(function (it) {
+        return '▪ ' + it.cant + ' x ' + it.nombre + ' — ' + RM.formatPesos(it.precio * it.cant);
+      }).join('<br>');
+      html += '<div class="pedido e-' + p.estado + '">' +
+        '<div class="ped-emp-tag">🏪 ' + (p._empNombre || p.empresaNombre || p.empresaId) + '</div>' +
+        '<div class="ped-cab"><span class="ped-cod">#' + p.codigo +
+        (p.clienteNombre ? ' · ' + p.clienteNombre : '') + '</span>' +
+        '<span class="pill ' + E.pill + '">' + E.texto + '</span></div>' +
+        '<div class="ped-hora">🕐 ' + (p.fechaTexto || '') + '</div>' +
+        '<div class="ped-lineas">' + lineas + '</div>' +
+        '<div class="ped-dir">📍 ' + (p.direccion || '') +
+        (p.geo ? ' · <a target="_blank" rel="noopener" href="https://maps.google.com/?q=' + p.geo.lat + ',' + p.geo.lng + '" style="color:var(--c-secundario)">ver mapa</a>' : '') + '</div>' +
+        (p.nota ? '<div style="font-size:12.5px;background:var(--c-fondo);border-radius:9px;padding:7px 10px;margin:6px 0">📝 ' + p.nota + '</div>' : '') +
+        '<div class="ped-tot">' + RM.formatPesos(p.total || 0) + '</div>' +
+        '</div>';
+    });
+    $('listaPedidos').innerHTML = html;
+  }
+
+  /* ---------- Empresas ---------- */
+  function cargarEmpresas() { pintarEmpresas(DATOS.empresas); }
+
+  function pintarEmpresas(lista) {
+    var html = '';
+    lista.forEach(function (e) {
+      html += '<div class="emp-card-a">' +
+        '<div class="nom">' + e.nombre + '</div>' +
+        '<div class="dir">' + (e.direccion || '') + '</div>' +
+        '<div class="emp-row">' +
+        '<span class="tag-plan">📦 ' + (e.plan || 'sin plan') + '</span>' +
+        '<span class="' + (e.activa ? 'tag-activa">✅ Activa' : 'tag-inactiva">🚫 Inactiva') + '</span>' +
+        (e.destacada ? '<span class="tag-dest">⭐ Destacada</span>' : '') +
+        '</div>' +
+        '<div class="emp-btns">' +
+        '<button class="mini-btn" data-toggle-emp="' + e.id + '">' + (e.activa ? 'Desactivar' : 'Activar') + '</button>' +
+        '<button class="mini-btn" data-toggle-dest="' + e.id + '">' + (e.destacada ? 'Quitar destacada' : '⭐ Destacar') + '</button>' +
+        '<button class="mini-btn" data-cambiar-plan="' + e.id + '">Cambiar plan</button>' +
+        '</div></div>';
+    });
+    $('listaEmpresas').innerHTML = html || '<div class="vacio">No hay empresas cargadas.</div>';
+  }
+
+  document.addEventListener('click', function (e) {
+    var te = e.target.closest('[data-toggle-emp]');
+    var td = e.target.closest('[data-toggle-dest]');
+    var cp = e.target.closest('[data-cambiar-plan]');
+    var id = (te || td || cp);
+    if (!id) return;
+    var empId = id.getAttribute('data-toggle-emp') || id.getAttribute('data-toggle-dest') || id.getAttribute('data-cambiar-plan');
+    var emp = null;
+    DATOS.empresas.forEach(function (e) { if (e.id === empId) emp = e; });
+    if (!emp) return;
+    if (te) {
+      emp.activa = !emp.activa;
+      RM.guardarEmpresa(empId, { activa: emp.activa }, function (err) {
+        if (err) { emp.activa = !emp.activa; alert('Error: ' + err); return; }
+        pintarEmpresas(DATOS.empresas); toast();
+      });
+    }
+    if (td) {
+      emp.destacada = !emp.destacada;
+      RM.guardarEmpresa(empId, { destacada: emp.destacada }, function (err) {
+        if (err) { emp.destacada = !emp.destacada; alert('Error: ' + err); return; }
+        pintarEmpresas(DATOS.empresas); toast();
+      });
+    }
+    if (cp) {
+      var planes = ['basico', 'full', 'sin plan'];
+      var actual = emp.plan || 'sin plan';
+      var nuevo = prompt('Plan para ' + emp.nombre + ' (' + planes.join(' / ') + '):', actual);
+      if (nuevo && planes.indexOf(nuevo.toLowerCase()) !== -1) {
+        emp.plan = nuevo.toLowerCase();
+        RM.guardarEmpresa(empId, { plan: emp.plan }, function (err) {
+          if (err) alert('Error: ' + err); else { pintarEmpresas(DATOS.empresas); toast(); }
+        });
+      } else if (nuevo !== null) {
+        alert('Plan inválido. Usá: ' + planes.join(', '));
+      }
+    }
+  });
+
+  /* ---------- Tenant ---------- */
+  function pintarTenant() {
+    var t = DATOS.tenant;
+    $('cfgNombre').value = t.nombre || '';
+    $('cfgLema').value = t.lema || '';
+    $('cfgZona').value = t.zona || '';
+    var s = t.scoring || {};
+    $('pPrecio').value = s.precio || 35;
+    $('pDistancia').value = s.distancia || 25;
+    $('pRating').value = s.rating || 25;
+    $('pRapidez').value = s.rapidez || 15;
+    $('pBoost').value = s.boostDestacada || 6;
+    actualizarSuma();
+    ['pPrecio','pDistancia','pRating','pRapidez','pBoost'].forEach(function (id) {
+      $(id).addEventListener('input', actualizarSuma);
+    });
+  }
+
+  function actualizarSuma() {
+    var suma = [+$('pPrecio').value, +$('pDistancia').value, +$('pRating').value, +$('pRapidez').value].reduce(function (a,b) { return a+b; }, 0);
+    $('sumaPesos').textContent = 'Suma de pesos principales: ' + suma + ' (tiene que ser 100)';
+    $('sumaPesos').style.color = suma === 100 ? 'var(--c-ok)' : '#B4553B';
+  }
+
+  $('btnGuardarTenant').addEventListener('click', function () {
+    var suma = [+$('pPrecio').value, +$('pDistancia').value, +$('pRating').value, +$('pRapidez').value].reduce(function (a,b) { return a+b; }, 0);
+    if (suma !== 100) { alert('Los pesos principales tienen que sumar 100. Ahora suman ' + suma + '.'); return; }
+    var cambios = {
+      nombre: $('cfgNombre').value.trim() || DATOS.tenant.nombre,
+      lema: $('cfgLema').value.trim(),
+      zona: $('cfgZona').value.trim(),
+      scoring: {
+        precio: +$('pPrecio').value, distancia: +$('pDistancia').value,
+        rating: +$('pRating').value, rapidez: +$('pRapidez').value,
+        boostDestacada: +$('pBoost').value
+      }
+    };
+    var fb = RM._internos.fb();
+    if (!fb.db) { alert('Firebase no inicializado.'); return; }
+    fb.db.collection('tenants').doc(RM._internos.tenantIdActual()).update(cambios)
+      .then(function () {
+        RM.limpiarCache();
+        DATOS.tenant = Object.assign(DATOS.tenant, cambios);
+        $('brandNombre').textContent = cambios.nombre;
+        toast();
+      })
+      .catch(function (e) { alert('Error guardando: ' + e.message); });
+  });
+
+})();
+</script>
+</body>
+</html>
