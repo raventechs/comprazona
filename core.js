@@ -72,25 +72,26 @@ var RM_DEMO = {
       horario: { desde: '00:00', hasta: '23:59', dias: [0,1,2,3,4,5,6], h24: true } }
   ],
   productos: {
+    // Precios actualizados agosto 2026 · GBA · promedio distribuidores privados
     eltano: [
-      { id: 'g10', nombre: 'Garrafa 10 kg (canje)', precio: 22500, categoria: 'garrafas', activo: true },
-      { id: 'g15', nombre: 'Garrafa 15 kg (canje)', precio: 33500, categoria: 'garrafas', activo: true },
-      { id: 'g45', nombre: 'Tubo 45 kg (canje)', precio: 97000, categoria: 'garrafas', activo: true }
+      { id: 'g10', nombre: 'Garrafa 10 kg (canje)', precio: 35000, categoria: 'garrafas', activo: true },
+      { id: 'g15', nombre: 'Garrafa 15 kg (canje)', precio: 52000, categoria: 'garrafas', activo: true },
+      { id: 'g45', nombre: 'Tubo 45 kg (canje)',    precio: 140000, categoria: 'garrafas', activo: true }
     ],
     sanjorge: [
-      { id: 'g10', nombre: 'Garrafa 10 kg (canje)', precio: 23000, categoria: 'garrafas', activo: true },
-      { id: 'g15', nombre: 'Garrafa 15 kg (canje)', precio: 34000, categoria: 'garrafas', activo: true },
-      { id: 'b20', nombre: 'Bidón de agua 20 L (retornable)', precio: 5500, categoria: 'agua', activo: true },
-      { id: 'b12', nombre: 'Bidón de agua 12 L', precio: 4200, categoria: 'agua', activo: true }
+      { id: 'g10', nombre: 'Garrafa 10 kg (canje)',          precio: 36500, categoria: 'garrafas', activo: true },
+      { id: 'g15', nombre: 'Garrafa 15 kg (canje)',          precio: 53500, categoria: 'garrafas', activo: true },
+      { id: 'b20', nombre: 'Bidón de agua 20 L (retornable)', precio: 7000, categoria: 'agua',     activo: true },
+      { id: 'b12', nombre: 'Bidón de agua 12 L',             precio: 5500,  categoria: 'agua',     activo: true }
     ],
     aguapura: [
-      { id: 'b20', nombre: 'Bidón de agua 20 L (retornable)', precio: 5200, categoria: 'agua', activo: true },
-      { id: 'b12', nombre: 'Bidón de agua 12 L', precio: 4000, categoria: 'agua', activo: true },
-      { id: 'disp', nombre: 'Dispenser frío/calor (alquiler mensual)', precio: 9000, categoria: 'agua', activo: true }
+      { id: 'b20',  nombre: 'Bidón de agua 20 L (retornable)',        precio: 6800,  categoria: 'agua', activo: true },
+      { id: 'b12',  nombre: 'Bidón de agua 12 L',                     precio: 5200,  categoria: 'agua', activo: true },
+      { id: 'disp', nombre: 'Dispenser frío/calor (alquiler mensual)', precio: 12000, categoria: 'agua', activo: true }
     ],
     gasexpress: [
-      { id: 'g10', nombre: 'Garrafa 10 kg (canje)', precio: 24500, categoria: 'garrafas', activo: true },
-      { id: 'g15', nombre: 'Garrafa 15 kg (canje)', precio: 35500, categoria: 'garrafas', activo: true }
+      { id: 'g10', nombre: 'Garrafa 10 kg (canje)', precio: 38000, categoria: 'garrafas', activo: true },
+      { id: 'g15', nombre: 'Garrafa 15 kg (canje)', precio: 56000, categoria: 'garrafas', activo: true }
     ]
   }
 };
