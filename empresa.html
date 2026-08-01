@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<!--
+  ARCHIVO: empresa.html
+  VERSIÓN: v0.1
+  FECHA: 01/08/2026
+  PROYECTO: RavenMarket — Panel Empresa | RavenTechs
+  CHANGELOG:
+  - v0.1 (01/08/2026): Panel empresa esencial en MODO DEMO. Tres pestañas: Pedidos (lista del
+    día con avance de estado recibido→en camino→entregado y contador de pendientes), Productos
+    (alta, edición de precio, activar/desactivar) y Mi negocio (datos, WhatsApp, tiempo estimado,
+    horarios). Selector de empresa que simula el login. Persistencia demo en localStorage.
+  PENDIENTE: conexión Firestore (pedidos en vivo), teléfono del cliente en el pedido, login real.
+-->
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Panel Empresa — RavenMarket</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="estilos.css">
+<style>
+/* ---- Específicos del panel empresa ---- */
+.selector-emp{margin-top:10px}
+.selector-emp select{width:100%;padding:11px 13px;border:1.5px solid var(--c-borde);border-radius:var(--radio);background:var(--c-tarjeta);font-family:inherit;font-size:15px;font-weight:700}
+.filtros{display:flex;gap:8px;margin-bottom:14px}
+.filtros button{flex:1;padding:9px 4px;border-radius:11px;border:1.5px solid var(--c-borde);background:var(--c-tarjeta);font-size:12.5px;font-weight:800;color:var(--c-suave)}
+.filtros button.activo{border-color:var(--c-primario);color:var(--c-primario);background:#FFF2E3}
+.pedido{background:var(--c-tarjeta);border:1.5px solid var(--c-borde);border-left-width:5px;border-radius:var(--radio);padding:14px;margin-bottom:12px;box-shadow:var(--sombra)}
+.pedido.e-enviado{border-left-color:var(--c-primario)}
+.pedido.e-recibido{border-left-color:#3E7BC0}
+.pedido.e-encamino{border-left-color:var(--c-secundario)}
+.pedido.e-entregado{border-left-color:var(--c-ok)}
+.pedido.e-cancelado{border-left-color:#B4553B;opacity:.75}
+.ped-cab{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+.ped-cod{font-weight:800;font-size:15px}
+.pill{font-size:11px;font-weight:800;padding:4px 10px;border-radius:20px;white-space:nowrap}
+.p-enviado{background:#FFF2E3;color:#A85B12}
+.p-recibido{background:#E7EEF8;color:#2C5E9E}
+.p-encamino{background:#E7F3F8;color:#1E6E8C}
+.p-entregado{background:#E7F4EA;color:var(--c-ok)}
+.p-cancelado{background:#F6EAE6;color:#B4553B}
+.ped-hora{font-size:12px;color:var(--c-suave);font-weight:600}
+.ped-lineas{font-size:13.5px;margin:6px 0;line-height:1.6}
+.ped-dir{font-size:13px;color:var(--c-suave);margin:4px 0}
+.ped-nota{font-size:12.5px;background:var(--c-fondo);border-radius:9px;padding:7px 10px;margin:6px 0}
+.ped-pie{display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:10px}
+.ped-tot{font-weight:800;font-size:16px}
+.btn-estado{background:var(--c-primario);color:#fff;font-weight:800;font-size:13.5px;padding:11px 16px;border-radius:12px}
+.btn-estado.azulado{background:var(--c-secundario)}
+.btn-estado.verde{background:var(--c-ok)}
+.btn-cancelar{font-size:12px;font-weight:700;color:#B4553B;padding:8px 4px}
+.prod-admin{background:var(--c-tarjeta);border:1.5px solid var(--c-borde);border-radius:var(--radio);padding:13px 15px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.prod-admin.inactivo{opacity:.55}
+.prod-admin .nom{font-weight:700;font-size:14.5px}
+.prod-admin .pre{font-weight:800;color:var(--c-primario);font-size:15px;margin-top:2px}
+.prod-acciones{display:flex;gap:6px}
+.mini-btn{border:1.5px solid var(--c-borde);border-radius:10px;padding:8px 11px;font-weight:800;font-size:13px;background:var(--c-tarjeta)}
+.fab{position:fixed;right:18px;bottom:76px;z-index:26;width:56px;height:56px;border-radius:50%;background:var(--c-primario);color:#fff;font-size:28px;font-weight:800;box-shadow:0 4px 14px rgba(242,123,19,.4)}
+.dia-chk{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.dia-chk label{border:1.5px solid var(--c-borde);border-radius:10px;padding:7px 11px;font-size:13px;font-weight:800;background:var(--c-tarjeta)}
+.dia-chk input{display:none}
+.dia-chk input:checked + span{color:var(--c-primario)}
+.dia-chk label:has(input:checked){border-color:var(--c-primario);background:#FFF2E3}
+.guardado{position:fixed;left:50%;transform:translateX(-50%);bottom:130px;background:#26221D;color:#fff;font-size:13px;font-weight:700;padding:9px 16px;border-radius:20px;z-index:50;display:none}
+.hint{font-size:12.5px;color:var(--c-suave);margin:2px 0 14px}
+</style>
+</head>
+<body>
+
+<div class="demo-banner" id="demoBanner" style="display:none">MODO DEMO — pedidos de ejemplo, sin conexión a Firebase</div>
+
+<header class="app">
+  <div class="brand">
+    <div class="logo">🏪</div>
+    <div>
+      <h1 id="brandNombre">Panel Empresa</h1>
+      <div class="lema" id="brandLema">RavenMarket</div>
+    </div>
+  </div>
+  <div class="selector-emp">
+    <select id="selEmpresa" aria-label="Elegir empresa (demo)"></select>
+  </div>
+</header>
+
+<main>
+
+  <!-- ========== TAB PEDIDOS ========== -->
+  <div class="vista activa" id="tPedidos">
+    <div class="filtros">
+      <button data-f="activos" class="activo">Activos</button>
+      <button data-f="entregados">Entregados</button>
+      <button data-f="todos">Todos</button>
+    </div>
+    <div id="listaPedidos"></div>
+  </div>
+
+  <!-- ========== TAB PRODUCTOS ========== -->
+  <div class="vista" id="tProductos">
+    <div class="seccion-titulo">Mis productos</div>
+    <div class="hint">Tocá el precio para cambiarlo. El botón 👁 lo muestra u oculta en el marketplace.</div>
+    <div id="listaProdAdmin"></div>
+  </div>
+
+  <!-- ========== TAB MI NEGOCIO ========== -->
+  <div class="vista" id="tNegocio">
+    <div class="seccion-titulo">Mi negocio</div>
+    <div class="campo"><label for="cfgNombre">Nombre</label><input id="cfgNombre" type="text"></div>
+    <div class="campo"><label for="cfgDir">Dirección</label><input id="cfgDir" type="text"></div>
+    <div class="campo"><label for="cfgWa">WhatsApp (con 549, sin espacios)</label><input id="cfgWa" type="tel" placeholder="5491122334455"></div>
+    <div class="campo"><label for="cfgTiempo">Tiempo estimado de entrega (minutos)</label><input id="cfgTiempo" type="number" min="5" step="5"></div>
+    <div class="campo">
+      <label>Horario de atención</label>
+      <div style="display:flex;gap:8px">
+        <input id="cfgDesde" type="time" style="flex:1"><input id="cfgHasta" type="time" style="flex:1">
+      </div>
+      <div class="dia-chk" id="cfgDias"></div>
+    </div>
+    <button class="btn-principal" id="btnGuardarCfg" style="width:100%">Guardar cambios</button>
+  </div>
+
+</main>
+
+<button class="fab" id="fabAgregar" title="Agregar producto" aria-label="Agregar producto" style="display:none">+</button>
+
+<!-- Modal producto -->
+<div class="modal-fondo" id="modalProd">
+  <div class="modal">
+    <h3 id="modalProdTitulo">Nuevo producto</h3>
+    <div class="campo"><label for="prodNom">Nombre</label><input id="prodNom" type="text" placeholder="Ej: Garrafa 10 kg (canje)"></div>
+    <div class="campo"><label for="prodPre">Precio (ARS)</label><input id="prodPre" type="number" min="0" step="100"></div>
+    <div class="campo"><label for="prodCat">Categoría</label>
+      <select id="prodCat" style="width:100%;padding:12px 14px;border:1.5px solid var(--c-borde);border-radius:var(--radio);background:var(--c-tarjeta);font-family:inherit;font-size:15px"></select>
+    </div>
+    <button class="btn-principal" id="btnGuardarProd" style="width:100%">Guardar producto</button>
+    <button class="btn-sec" id="btnCerrarProd">Cancelar</button>
+  </div>
+</div>
+
+<div class="guardado" id="toastGuardado">✓ Guardado</div>
+
+<!-- Nav inferior -->
+<nav class="nav-inferior">
+  <button data-tab="tPedidos" class="activo"><span class="ni">📋</span>Pedidos <span id="badgePend"></span></button>
+  <button data-tab="tProductos"><span class="ni">🏷️</span>Productos</button>
+  <button data-tab="tNegocio"><span class="ni">⚙️</span>Mi negocio</button>
+</nav>
+
+<script src="core.js"></script>
+<script>
+/* ============ PANEL EMPRESA v0.1 ============ */
+(function () {
+  var DATOS = null;
+  var empId = null;
+  var filtro = 'activos';
+  var editandoProdId = null;
+  var DIAS_NOM = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+  var ESTADOS = {
+    enviado:   { pill: 'p-enviado',   texto: 'Nuevo',      accion: '✓ Tomar pedido',    sig: 'recibido',  btn: '' },
+    recibido:  { pill: 'p-recibido',  texto: 'Tomado',     accion: '🛵 Salió el reparto', sig: 'encamino',  btn: 'azulado' },
+    encamino:  { pill: 'p-encamino',  texto: 'En camino',  accion: '✅ Entregado',        sig: 'entregado', btn: 'verde' },
+    entregado: { pill: 'p-entregado', texto: 'Entregado',  accion: null },
+    cancelado: { pill: 'p-cancelado', texto: 'Cancelado',  accion: null }
+  };
+
+  var $ = function (id) { return document.getElementById(id); };
+  function lsKey(sufijo) { return 'rm_emp_' + empId + '_' + sufijo; }
+  function leerLS(sufijo, porDefecto) {
+    try { var v = localStorage.getItem(lsKey(sufijo)); return v ? JSON.parse(v) : porDefecto; }
+    catch (e) { return porDefecto; }
+  }
+  function guardarLS(sufijo, valor) { localStorage.setItem(lsKey(sufijo), JSON.stringify(valor)); }
+  function toast() {
+    $('toastGuardado').style.display = 'block';
+    setTimeout(function () { $('toastGuardado').style.display = 'none'; }, 1400);
+  }
+
+  /* ---------- Seed de pedidos demo (con fecha de hoy) ---------- */
+  function seedPedidos() {
+    var hoy = new Date();
+    function hora(h, m) {
+      var d = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), h, m);
+      return { ts: d.getTime(), txt: d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) };
+    }
+    var base = [
+      { codigo: 'K3F7', estado: 'enviado',  h: hora(9, 12),
+        items: [{ nombre: 'Garrafa 10 kg (canje)', precio: 23000, cant: 1 }],
+        direccion: 'Av. del Trabajo 3420, G. Catán', nota: 'Portón negro, tocar bocina' },
+      { codigo: 'M8Q2', estado: 'enviado',  h: hora(9, 47),
+        items: [{ nombre: 'Garrafa 10 kg (canje)', precio: 23000, cant: 2 }],
+        direccion: 'Los Andes 1250, G. Catán', nota: '' },
+      { codigo: 'B5T9', estado: 'recibido', h: hora(8, 30),
+        items: [{ nombre: 'Bidón de agua 20 L (retornable)', precio: 5500, cant: 3 }],
+        direccion: 'Perú 890, Virrey del Pino', nota: 'Dejar con el encargado' },
+      { codigo: 'X2N4', estado: 'encamino', h: hora(8, 5),
+        items: [{ nombre: 'Garrafa 15 kg (canje)', precio: 34000, cant: 1 },
+                { nombre: 'Bidón de agua 12 L', precio: 4200, cant: 2 }],
+        direccion: 'Estanislao del Campo 2277, G. Catán', nota: '' },
+      { codigo: 'J7R1', estado: 'entregado', h: hora(7, 40),
+        items: [{ nombre: 'Garrafa 10 kg (canje)', precio: 23000, cant: 1 }],
+        direccion: 'Chubut 455, G. Catán', nota: '' }
+    ];
+    return base.map(function (p) {
+      var total = 0;
+      p.items.forEach(function (it) { total += it.precio * it.cant; });
+      return { codigo: p.codigo, estado: p.estado, ts: p.h.ts, horaTxt: p.h.txt,
+               items: p.items, total: total, direccion: p.direccion, nota: p.nota };
+    });
+  }
+
+  /* ---------- Arranque ---------- */
+  RM.initTenant(function (err, datos) {
+    if (err) { $('brandNombre').textContent = 'Error: ' + err; return; }
+    DATOS = datos;
+    if (RM_CONFIG.DEMO) $('demoBanner').style.display = 'block';
+    var html = '';
+    datos.empresas.forEach(function (e) {
+      html += '<option value="' + e.id + '">' + e.nombre + '</option>';
+    });
+    $('selEmpresa').innerHTML = html;
+    $('selEmpresa').addEventListener('change', function () { cargarEmpresa(this.value); });
+    cargarEmpresa(datos.empresas[0].id);
+  });
+
+  function empresaActual() {
+    var emp = null;
+    DATOS.empresas.forEach(function (e) { if (e.id === empId) emp = e; });
+    return emp;
+  }
+
+  function cargarEmpresa(id) {
+    empId = id;
+    $('selEmpresa').value = id;
+    var emp = empresaActual();
+    $('brandNombre').textContent = emp.nombre;
+    // Seeds si es la primera vez en este dispositivo
+    if (!localStorage.getItem(lsKey('pedidos'))) guardarLS('pedidos', seedPedidos());
+    if (!localStorage.getItem(lsKey('productos'))) guardarLS('productos', DATOS.productos[id] || []);
+    if (!localStorage.getItem(lsKey('config'))) {
+      guardarLS('config', { nombre: emp.nombre, direccion: emp.direccion, whatsapp: emp.whatsapp,
+        tiempoEstimadoMin: emp.tiempoEstimadoMin, horario: emp.horario });
+    }
+    pintarPedidos(); pintarProductos(); pintarConfig();
+  }
+
+  /* ---------- Tabs ---------- */
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest('[data-tab]');
+    if (!t) return;
+    var vistas = document.querySelectorAll('.vista');
+    for (var i = 0; i < vistas.length; i++) vistas[i].classList.remove('activa');
+    $(t.getAttribute('data-tab')).classList.add('activa');
+    var navs = document.querySelectorAll('[data-tab]');
+    for (var j = 0; j < navs.length; j++) navs[j].classList.remove('activo');
+    t.classList.add('activo');
+    $('fabAgregar').style.display = (t.getAttribute('data-tab') === 'tProductos') ? 'block' : 'none';
+    window.scrollTo(0, 0);
+  });
+
+  /* ---------- Pedidos ---------- */
+  document.addEventListener('click', function (e) {
+    var f = e.target.closest('[data-f]');
+    if (!f) return;
+    filtro = f.getAttribute('data-f');
+    var botones = document.querySelectorAll('[data-f]');
+    for (var i = 0; i < botones.length; i++) botones[i].classList.remove('activo');
+    f.classList.add('activo');
+    pintarPedidos();
+  });
+
+  function pintarPedidos() {
+    var pedidos = leerLS('pedidos', []);
+    pedidos.sort(function (a, b) { return b.ts - a.ts; });
+    var pend = pedidos.filter(function (p) { return p.estado === 'enviado' || p.estado === 'recibido' || p.estado === 'encamino'; }).length;
+    $('badgePend').textContent = pend ? '(' + pend + ')' : '';
+    var lista = pedidos.filter(function (p) {
+      if (filtro === 'activos') return ['enviado', 'recibido', 'encamino'].indexOf(p.estado) !== -1;
+      if (filtro === 'entregados') return p.estado === 'entregado';
+      return true;
+    });
+    if (!lista.length) {
+      $('listaPedidos').innerHTML = '<div class="vacio"><span class="ico">📭</span>No hay pedidos ' +
+        (filtro === 'activos' ? 'activos ahora.' : 'en este filtro.') + '</div>';
+      return;
+    }
+    var html = '';
+    lista.forEach(function (p) {
+      var E = ESTADOS[p.estado];
+      var lineas = p.items.map(function (it) {
+        return '▪ ' + it.cant + ' x ' + it.nombre + ' — ' + RM.formatPesos(it.precio * it.cant);
+      }).join('<br>');
+      html += '<div class="pedido e-' + p.estado + '">' +
+        '<div class="ped-cab"><span class="ped-cod">#' + p.codigo + '</span>' +
+        '<span class="pill ' + E.pill + '">' + E.texto + '</span></div>' +
+        '<div class="ped-hora">🕐 ' + p.horaTxt + '</div>' +
+        '<div class="ped-lineas">' + lineas + '</div>' +
+        '<div class="ped-dir">📍 ' + p.direccion + '</div>' +
+        (p.nota ? '<div class="ped-nota">📝 ' + p.nota + '</div>' : '') +
+        '<div class="ped-pie"><span class="ped-tot">' + RM.formatPesos(p.total) + '</span>' +
+        (E.accion
+          ? '<div><button class="btn-cancelar" data-cancelar="' + p.codigo + '">Cancelar</button> ' +
+            '<button class="btn-estado ' + E.btn + '" data-avanzar="' + p.codigo + '">' + E.accion + '</button></div>'
+          : '') +
+        '</div></div>';
+    });
+    $('listaPedidos').innerHTML = html;
+  }
+
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest('[data-avanzar]');
+    var c = e.target.closest('[data-cancelar]');
+    if (!a && !c) return;
+    var codigo = (a || c).getAttribute(a ? 'data-avanzar' : 'data-cancelar');
+    var pedidos = leerLS('pedidos', []);
+    pedidos.forEach(function (p) {
+      if (p.codigo !== codigo) return;
+      if (a) p.estado = ESTADOS[p.estado].sig || p.estado;
+      if (c && confirm('¿Cancelar el pedido #' + codigo + '?')) p.estado = 'cancelado';
+    });
+    guardarLS('pedidos', pedidos);
+    pintarPedidos();
+  });
+
+  /* ---------- Productos ---------- */
+  function pintarProductos() {
+    var prods = leerLS('productos', []);
+    if (!prods.length) {
+      $('listaProdAdmin').innerHTML = '<div class="vacio"><span class="ico">🏷️</span>Todavía no cargaste productos.<br>Tocá el botón + para agregar el primero.</div>';
+      return;
+    }
+    var html = '';
+    prods.forEach(function (p) {
+      html += '<div class="prod-admin' + (p.activo ? '' : ' inactivo') + '">' +
+        '<div><div class="nom">' + p.nombre + '</div>' +
+        '<button class="pre" data-precio="' + p.id + '">' + RM.formatPesos(p.precio) + ' ✎</button></div>' +
+        '<div class="prod-acciones">' +
+        '<button class="mini-btn" data-toggle="' + p.id + '">' + (p.activo ? '👁' : '🚫') + '</button>' +
+        '<button class="mini-btn" data-editar="' + p.id + '">✏️</button>' +
+        '</div></div>';
+    });
+    $('listaProdAdmin').innerHTML = html;
+  }
+
+  document.addEventListener('click', function (e) {
+    var pr = e.target.closest('[data-precio]');
+    var tg = e.target.closest('[data-toggle]');
+    var ed = e.target.closest('[data-editar]');
+    if (!pr && !tg && !ed) return;
+    var prods = leerLS('productos', []);
+    if (pr) {
+      var id = pr.getAttribute('data-precio');
+      var prod = null;
+      prods.forEach(function (p) { if (p.id === id) prod = p; });
+      var nuevo = prompt('Nuevo precio para "' + prod.nombre + '":', prod.precio);
+      if (nuevo !== null && !isNaN(Number(nuevo)) && Number(nuevo) >= 0) {
+        prod.precio = Math.round(Number(nuevo));
+        guardarLS('productos', prods); pintarProductos(); toast();
+      }
+    }
+    if (tg) {
+      var idT = tg.getAttribute('data-toggle');
+      prods.forEach(function (p) { if (p.id === idT) p.activo = !p.activo; });
+      guardarLS('productos', prods); pintarProductos(); toast();
+    }
+    if (ed) {
+      var idE = ed.getAttribute('data-editar');
+      var prodE = null;
+      prods.forEach(function (p) { if (p.id === idE) prodE = p; });
+      abrirModalProd(prodE);
+    }
+  });
+
+  function abrirModalProd(prod) {
+    editandoProdId = prod ? prod.id : null;
+    $('modalProdTitulo').textContent = prod ? 'Editar producto' : 'Nuevo producto';
+    $('prodNom').value = prod ? prod.nombre : '';
+    $('prodPre').value = prod ? prod.precio : '';
+    var html = '';
+    DATOS.categorias.forEach(function (c) {
+      html += '<option value="' + c.id + '">' + c.icono + ' ' + c.nombre + '</option>';
+    });
+    $('prodCat').innerHTML = html;
+    if (prod) $('prodCat').value = prod.categoria;
+    $('modalProd').classList.add('abierto');
+  }
+  $('fabAgregar').addEventListener('click', function () { abrirModalProd(null); });
+  $('btnCerrarProd').addEventListener('click', function () { $('modalProd').classList.remove('abierto'); });
+
+  $('btnGuardarProd').addEventListener('click', function () {
+    var nom = $('prodNom').value.trim();
+    var pre = Number($('prodPre').value);
+    if (!nom) { alert('Escribí el nombre del producto.'); return; }
+    if (isNaN(pre) || pre < 0) { alert('Poné un precio válido.'); return; }
+    var prods = leerLS('productos', []);
+    if (editandoProdId) {
+      prods.forEach(function (p) {
+        if (p.id === editandoProdId) { p.nombre = nom; p.precio = Math.round(pre); p.categoria = $('prodCat').value; }
+      });
+    } else {
+      prods.push({ id: 'p' + Date.now(), nombre: nom, precio: Math.round(pre),
+                   categoria: $('prodCat').value, activo: true });
+    }
+    guardarLS('productos', prods);
+    $('modalProd').classList.remove('abierto');
+    pintarProductos(); toast();
+  });
+
+  /* ---------- Mi negocio ---------- */
+  function pintarConfig() {
+    var cfg = leerLS('config', {});
+    $('cfgNombre').value = cfg.nombre || '';
+    $('cfgDir').value = cfg.direccion || '';
+    $('cfgWa').value = cfg.whatsapp || '';
+    $('cfgTiempo').value = cfg.tiempoEstimadoMin || 45;
+    var h = cfg.horario || { desde: '08:00', hasta: '19:00', dias: [1,2,3,4,5,6], h24: false };
+    $('cfgDesde').value = h.desde;
+    $('cfgHasta').value = h.hasta;
+    var html = '';
+    for (var d = 0; d < 7; d++) {
+      var marcado = h.dias.indexOf(d) !== -1 ? ' checked' : '';
+      html += '<label><input type="checkbox" value="' + d + '"' + marcado + '><span>' + DIAS_NOM[d] + '</span></label>';
+    }
+    $('cfgDias').innerHTML = html;
+  }
+
+  $('btnGuardarCfg').addEventListener('click', function () {
+    var dias = [];
+    var checks = $('cfgDias').querySelectorAll('input:checked');
+    for (var i = 0; i < checks.length; i++) dias.push(Number(checks[i].value));
+    var wa = $('cfgWa').value.replace(/\D/g, '');
+    if (wa && wa.length < 10) { alert('Revisá el número de WhatsApp (formato 549...).'); return; }
+    var cfg = {
+      nombre: $('cfgNombre').value.trim(),
+      direccion: $('cfgDir').value.trim(),
+      whatsapp: wa,
+      tiempoEstimadoMin: Math.max(5, Number($('cfgTiempo').value) || 45),
+      horario: { desde: $('cfgDesde').value || '08:00', hasta: $('cfgHasta').value || '19:00',
+                 dias: dias.length ? dias : [1,2,3,4,5,6], h24: false }
+    };
+    guardarLS('config', cfg);
+    $('brandNombre').textContent = cfg.nombre || empresaActual().nombre;
+    toast();
+  });
+
+})();
+</script>
+</body>
+</html>
