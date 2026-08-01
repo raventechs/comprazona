@@ -1,14 +1,15 @@
 <!DOCTYPE html>
 <!--
   ARCHIVO: index.html
-  VERSIÓN: v0.1
+  VERSIÓN: v0.2
   FECHA: 01/08/2026
   PROYECTO: RavenMarket — App Cliente (marketplace público) | RavenTechs
   CHANGELOG:
-  - v0.1 (01/08/2026): Primera app cliente funcional en MODO DEMO. Portada con buscador y
-    categorías, ranking de empresas con insignias, detalle con carrito, confirmación de
-    pedido con dirección guardada, generación de mensaje WhatsApp, historial local con
-    recompra en un toque, ubicación opcional para ordenar por distancia.
+  - v0.2 (01/08/2026): Conexión Firebase. Login con Google al confirmar el pedido, pedidos
+    registrados en Firestore, historial del cliente desde la nube, ubicación GPS opcional
+    incluida en el pedido (link de Google Maps en el WhatsApp). Fallback demo automático si
+    el tenant todavía no fue inicializado con setup.html.
+  - v0.1 (01/08/2026): Primera app cliente funcional en modo demo.
 -->
 <html lang="es">
 <head>
@@ -21,15 +22,18 @@
 </head>
 <body>
 
-<div class="demo-banner" id="demoBanner" style="display:none">MODO DEMO — datos de ejemplo, sin conexión a Firebase</div>
+<div class="demo-banner" id="demoBanner" style="display:none">MODO DEMO — datos de ejemplo</div>
 
 <header class="app">
-  <div class="brand">
-    <div class="logo" id="brandLogo">🔥</div>
-    <div>
-      <h1 id="brandNombre">Cargando…</h1>
-      <div class="lema" id="brandLema"></div>
+  <div class="fila-header">
+    <div class="brand">
+      <div class="logo" id="brandLogo">🔥</div>
+      <div>
+        <h1 id="brandNombre">Cargando…</h1>
+        <div class="lema" id="brandLema"></div>
+      </div>
     </div>
+    <button class="sesion-chip entrar" id="chipSesion" style="display:none">Ingresar</button>
   </div>
   <div class="zona" id="brandZona"></div>
 </header>
@@ -76,10 +80,16 @@
       <input type="text" id="inpDireccion" placeholder="Calle, número, localidad">
     </div>
     <div class="campo">
+      <label for="inpTelefono">Tu teléfono (para que te contacten si hace falta)</label>
+      <input type="tel" id="inpTelefono" placeholder="11 2233 4455">
+    </div>
+    <div class="campo">
       <label for="inpNota">Nota para la empresa (opcional)</label>
       <textarea id="inpNota" rows="2" placeholder="Ej: tocar timbre, casa del portón verde"></textarea>
     </div>
     <button class="btn-principal" id="btnEnviar" style="width:100%">Enviar pedido por WhatsApp</button>
+    <p id="avisoLogin" style="display:none;font-size:13px;color:var(--c-suave);text-align:center;margin-top:10px">
+      Para registrar el pedido y verlo en tu historial, primero ingresá con Google.</p>
   </div>
 
   <!-- ========== VISTA HISTORIAL ========== -->
@@ -118,15 +128,19 @@
   <button data-ir="vHistorial" id="navHistorial"><span class="ni">🧾</span>Mis pedidos</button>
 </nav>
 
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script src="core.js"></script>
 <script>
-/* ============ APP CLIENTE v0.1 ============ */
+/* ============ APP CLIENTE v0.2 ============ */
 (function () {
-  var DATOS = null;          // { tenant, categorias, empresas, productos }
+  var DATOS = null;
   var catActual = null;
   var empActual = null;
-  var carrito = {};          // prodId -> { prod, cant }
+  var carrito = {};
   var userGeo = null;
+  var usuario = null;         // usuario Firebase logueado (o null)
 
   var $ = function (id) { return document.getElementById(id); };
 
@@ -149,13 +163,40 @@
   RM.initTenant(function (err, datos) {
     if (err) { $('brandNombre').textContent = 'Error: ' + err; return; }
     DATOS = datos;
-    if (RM_CONFIG.DEMO) $('demoBanner').style.display = 'block';
+    if (datos.modoDemo || datos.faltaSeed) $('demoBanner').style.display = 'block';
     $('brandNombre').textContent = datos.tenant.nombre;
     $('brandLema').textContent = datos.tenant.lema || '';
     $('brandZona').textContent = '📍 ' + (datos.tenant.zona || '');
     var primeraCat = datos.categorias[0];
     if (primeraCat) $('brandLogo').textContent = primeraCat.icono;
     pintarCategorias();
+  });
+
+  /* ---------- Sesión ---------- */
+  RM.onAuth(function (u) {
+    usuario = u;
+    pintarSesion();
+  });
+
+  function pintarSesion() {
+    var chip = $('chipSesion');
+    if (RM_CONFIG.DEMO) { chip.style.display = 'none'; return; }
+    chip.style.display = 'block';
+    if (usuario) {
+      chip.textContent = '👤 ' + (usuario.displayName || 'Mi cuenta').split(' ')[0];
+      chip.classList.remove('entrar');
+    } else {
+      chip.textContent = 'Ingresar';
+      chip.classList.add('entrar');
+    }
+  }
+
+  $('chipSesion').addEventListener('click', function () {
+    if (usuario) {
+      if (confirm('¿Cerrar sesión de ' + (usuario.email || 'tu cuenta') + '?')) RM.logout();
+    } else {
+      RM.login(function (e) { if (e) alert('No se pudo ingresar: ' + e); });
+    }
   });
 
   function pintarCategorias() {
@@ -256,8 +297,7 @@
   }
 
   function pintarProductos() {
-    // Se muestran TODOS los productos activos de la empresa (venta cruzada intencional:
-    // quien entra por garrafas también ve el agua si la empresa vende ambas)
+    // Todos los productos activos de la empresa (venta cruzada intencional)
     var lista = (DATOS.productos[empActual.id] || []).filter(function (p) { return p.activo; });
     var html = '';
     lista.forEach(function (p) {
@@ -320,18 +360,43 @@
     html += '<div class="linea total"><span>Total</span><span>' + RM.formatPesos(t.total) + '</span></div>';
     $('resumenPedido').innerHTML = html;
     $('inpDireccion').value = localStorage.getItem('rm_direccion') || '';
+    $('inpTelefono').value = localStorage.getItem('rm_telefono') || '';
+    actualizarBotonEnviar();
     irA('vConfirmar');
   });
 
+  function esModoNube() { return !RM_CONFIG.DEMO && !DATOS.modoDemo && !DATOS.faltaSeed; }
+
+  function actualizarBotonEnviar() {
+    if (esModoNube() && !usuario) {
+      $('btnEnviar').textContent = 'Ingresar con Google para pedir';
+      $('avisoLogin').style.display = 'block';
+    } else {
+      $('btnEnviar').textContent = 'Enviar pedido por WhatsApp';
+      $('avisoLogin').style.display = 'none';
+    }
+  }
+
   /* ---------- Enviar pedido ---------- */
   $('btnEnviar').addEventListener('click', function () {
+    if (esModoNube() && !usuario) {
+      RM.login(function (e) {
+        if (e) { alert('No se pudo ingresar: ' + e); return; }
+        actualizarBotonEnviar();
+      });
+      return;
+    }
     var dir = $('inpDireccion').value.trim();
     if (!dir) { alert('Escribí la dirección de entrega.'); $('inpDireccion').focus(); return; }
+    var tel = $('inpTelefono').value.trim();
     localStorage.setItem('rm_direccion', dir);
+    localStorage.setItem('rm_telefono', tel);
     var t = totalesCarrito();
-    var ahora = new Date();
     var pedido = {
       codigo: RM.codigoPedido(),
+      clienteUid: usuario ? usuario.uid : 'demo',
+      clienteNombre: usuario ? (usuario.displayName || '') : 'Demo',
+      clienteTelefono: tel,
       empresaId: empActual.id,
       empresaNombre: empActual.nombre,
       whatsapp: empActual.whatsapp,
@@ -341,21 +406,35 @@
       total: t.total,
       direccion: dir,
       nota: $('inpNota').value.trim(),
-      ts: ahora.getTime(),
-      fechaTexto: ahora.toLocaleDateString('es-AR') + ' ' +
-                  ahora.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
+      geo: userGeo,
+      ts: Date.now(),
+      fechaTexto: RM.fechaTextoAhora(),
       estado: 'enviado'
     };
-    var hist = JSON.parse(localStorage.getItem('rm_historial') || '[]');
-    hist.unshift(pedido);
-    localStorage.setItem('rm_historial', JSON.stringify(hist.slice(0, 50)));
-    var msj = RM.mensajeWhatsApp(pedido, DATOS.tenant);
-    $('waPreview').textContent = msj;
-    $('btnWa').href = RM.waLink(pedido.whatsapp, msj);
-    $('modalTitulo').textContent = '✅ Pedido #' + pedido.codigo + ' registrado';
-    $('modalFondo').classList.add('abierto');
-    carrito = {};
-    pintarCarrito();
+    $('btnEnviar').disabled = true;
+
+    function terminar() {
+      var msj = RM.mensajeWhatsApp(pedido, DATOS.tenant);
+      $('waPreview').textContent = msj;
+      $('btnWa').href = RM.waLink(pedido.whatsapp, msj);
+      $('modalTitulo').textContent = '✅ Pedido #' + pedido.codigo + ' registrado';
+      $('modalFondo').classList.add('abierto');
+      carrito = {};
+      pintarCarrito();
+      $('btnEnviar').disabled = false;
+    }
+
+    if (esModoNube()) {
+      RM.crearPedido(pedido, function (e) {
+        if (e) { alert('No se pudo registrar el pedido: ' + e); $('btnEnviar').disabled = false; return; }
+        terminar();
+      });
+    } else {
+      var hist = JSON.parse(localStorage.getItem('rm_historial') || '[]');
+      hist.unshift(pedido);
+      localStorage.setItem('rm_historial', JSON.stringify(hist.slice(0, 50)));
+      terminar();
+    }
   });
 
   $('btnCerrarModal').addEventListener('click', function () {
@@ -365,29 +444,50 @@
   });
 
   /* ---------- Historial + recompra ---------- */
-  function pintarHistorial() {
-    var hist = JSON.parse(localStorage.getItem('rm_historial') || '[]');
-    if (!hist.length) {
+  function renderHistorial(lista) {
+    if (!lista.length) {
       $('listaHistorial').innerHTML = '<div class="vacio"><span class="ico">🧾</span>Todavía no hiciste pedidos.<br>Tu primer pedido queda guardado acá para repetirlo en un toque.</div>';
       return;
     }
     var html = '';
-    hist.forEach(function (p, i) {
+    lista.forEach(function (p, i) {
       var items = p.items.map(function (it) { return it.cant + 'x ' + it.nombre; }).join(', ');
       html += '<div class="ped-card">' +
         '<div class="ped-top"><span>#' + p.codigo + '</span><span>' + p.fechaTexto + '</span></div>' +
         '<div class="ped-emp">' + p.empresaNombre + '</div>' +
         '<div class="ped-items">' + items + '</div>' +
-        '<div class="ped-total">' + RM.formatPesos(p.total) + '</div>' +
+        '<div class="ped-total">' + RM.formatPesos(p.total) +
+        ' · <span style="color:var(--c-suave);font-weight:600;font-size:12.5px">' + (p.estado || 'enviado') + '</span></div>' +
         '<button class="btn-sec" data-recompra="' + i + '">🔁 Repetir este pedido</button></div>';
     });
     $('listaHistorial').innerHTML = html;
     var botones = $('listaHistorial').querySelectorAll('[data-recompra]');
     for (var i = 0; i < botones.length; i++) {
       botones[i].addEventListener('click', function () {
-        recomprar(hist[Number(this.getAttribute('data-recompra'))]);
+        recomprar(lista[Number(this.getAttribute('data-recompra'))]);
       });
     }
+  }
+
+  function pintarHistorial() {
+    if (!esModoNube()) {
+      renderHistorial(JSON.parse(localStorage.getItem('rm_historial') || '[]'));
+      return;
+    }
+    if (!usuario) {
+      $('listaHistorial').innerHTML = '<div class="pantalla-acceso"><span class="ico">👤</span>' +
+        '<h2>Ingresá para ver tus pedidos</h2><p>Con tu cuenta de Google guardamos tu historial y podés repetir pedidos en un toque.</p>' +
+        '<button class="btn-principal" id="btnLoginHist">Ingresar con Google</button></div>';
+      $('btnLoginHist').addEventListener('click', function () {
+        RM.login(function (e) { if (e) alert('No se pudo ingresar: ' + e); else pintarHistorial(); });
+      });
+      return;
+    }
+    $('listaHistorial').innerHTML = '<div class="vacio">Cargando…</div>';
+    RM.misPedidos(usuario.uid, function (e, lista) {
+      if (e) { $('listaHistorial').innerHTML = '<div class="vacio">No se pudo cargar el historial: ' + e + '</div>'; return; }
+      renderHistorial(lista);
+    });
   }
 
   function recomprar(pedido) {
