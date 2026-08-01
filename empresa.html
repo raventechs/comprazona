@@ -1,15 +1,18 @@
 <!DOCTYPE html>
 <!--
   ARCHIVO: empresa.html
-  VERSIÓN: v0.1
+  VERSIÓN: v0.2
   FECHA: 01/08/2026
   PROYECTO: RavenMarket — Panel Empresa | RavenTechs
   CHANGELOG:
-  - v0.1 (01/08/2026): Panel empresa esencial en MODO DEMO. Tres pestañas: Pedidos (lista del
-    día con avance de estado recibido→en camino→entregado y contador de pendientes), Productos
-    (alta, edición de precio, activar/desactivar) y Mi negocio (datos, WhatsApp, tiempo estimado,
-    horarios). Selector de empresa que simula el login. Persistencia demo en localStorage.
-  PENDIENTE: conexión Firestore (pedidos en vivo), teléfono del cliente en el pedido, login real.
+  - v0.2 (01/08/2026): Conexión Firebase. Login con Google obligatorio; el super admin ve el
+    selector de todas las empresas, un usuario con rol empresa entra directo a la suya.
+    Pedidos EN VIVO desde Firestore (onSnapshot) con avance de estados y cancelación.
+    Productos y configuración del negocio se guardan en Firestore. Teléfono del cliente
+    visible con botón de WhatsApp directo.
+  - v0.1 (01/08/2026): Panel esencial en modo demo con localStorage.
+  PENDIENTE: vinculación de usuarios-empresa desde admin.html (hoy la asigna el super admin
+  a mano en Firestore o vía próxima entrega de admin.html).
 -->
 <html lang="es">
 <head>
@@ -20,7 +23,6 @@
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="estilos.css">
 <style>
-/* ---- Específicos del panel empresa ---- */
 .selector-emp{margin-top:10px}
 .selector-emp select{width:100%;padding:11px 13px;border:1.5px solid var(--c-borde);border-radius:var(--radio);background:var(--c-tarjeta);font-family:inherit;font-size:15px;font-weight:700}
 .filtros{display:flex;gap:8px;margin-bottom:14px}
@@ -50,6 +52,7 @@
 .btn-estado.azulado{background:var(--c-secundario)}
 .btn-estado.verde{background:var(--c-ok)}
 .btn-cancelar{font-size:12px;font-weight:700;color:#B4553B;padding:8px 4px}
+.btn-wa-cli{display:inline-block;font-size:12.5px;font-weight:800;color:#1E7E4E;text-decoration:none;padding:6px 2px}
 .prod-admin{background:var(--c-tarjeta);border:1.5px solid var(--c-borde);border-radius:var(--radio);padding:13px 15px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:10px}
 .prod-admin.inactivo{opacity:.55}
 .prod-admin .nom{font-weight:700;font-size:14.5px}
@@ -60,32 +63,46 @@
 .dia-chk{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 .dia-chk label{border:1.5px solid var(--c-borde);border-radius:10px;padding:7px 11px;font-size:13px;font-weight:800;background:var(--c-tarjeta)}
 .dia-chk input{display:none}
-.dia-chk input:checked + span{color:var(--c-primario)}
-.dia-chk label:has(input:checked){border-color:var(--c-primario);background:#FFF2E3}
+.dia-chk label:has(input:checked){border-color:var(--c-primario);background:#FFF2E3;color:var(--c-primario)}
 .guardado{position:fixed;left:50%;transform:translateX(-50%);bottom:130px;background:#26221D;color:#fff;font-size:13px;font-weight:700;padding:9px 16px;border-radius:20px;z-index:50;display:none}
 .hint{font-size:12.5px;color:var(--c-suave);margin:2px 0 14px}
 </style>
 </head>
 <body>
 
-<div class="demo-banner" id="demoBanner" style="display:none">MODO DEMO — pedidos de ejemplo, sin conexión a Firebase</div>
-
 <header class="app">
-  <div class="brand">
-    <div class="logo">🏪</div>
-    <div>
-      <h1 id="brandNombre">Panel Empresa</h1>
-      <div class="lema" id="brandLema">RavenMarket</div>
+  <div class="fila-header">
+    <div class="brand">
+      <div class="logo">🏪</div>
+      <div>
+        <h1 id="brandNombre">Panel Empresa</h1>
+        <div class="lema">RavenMarket</div>
+      </div>
     </div>
+    <button class="sesion-chip" id="chipSesion" style="display:none"></button>
   </div>
-  <div class="selector-emp">
-    <select id="selEmpresa" aria-label="Elegir empresa (demo)"></select>
+  <div class="selector-emp" id="cajaSelector" style="display:none">
+    <select id="selEmpresa" aria-label="Elegir empresa"></select>
   </div>
 </header>
 
-<main>
+<!-- Pantalla de acceso -->
+<div class="pantalla-acceso" id="pAcceso" style="display:none">
+  <span class="ico">🏪</span>
+  <h2>Panel de tu negocio</h2>
+  <p>Ingresá con tu cuenta de Google para ver los pedidos y administrar tus productos.</p>
+  <button class="btn-principal" id="btnLogin">Ingresar con Google</button>
+</div>
 
-  <!-- ========== TAB PEDIDOS ========== -->
+<!-- Sin vinculación -->
+<div class="pantalla-acceso" id="pSinEmpresa" style="display:none">
+  <span class="ico">🔒</span>
+  <h2>Tu cuenta no está vinculada a una empresa</h2>
+  <p id="pSinEmpresaTxt">Pedile al administrador del marketplace que active tu negocio con este email.</p>
+</div>
+
+<main id="panel" style="display:none">
+
   <div class="vista activa" id="tPedidos">
     <div class="filtros">
       <button data-f="activos" class="activo">Activos</button>
@@ -95,14 +112,12 @@
     <div id="listaPedidos"></div>
   </div>
 
-  <!-- ========== TAB PRODUCTOS ========== -->
   <div class="vista" id="tProductos">
     <div class="seccion-titulo">Mis productos</div>
     <div class="hint">Tocá el precio para cambiarlo. El botón 👁 lo muestra u oculta en el marketplace.</div>
     <div id="listaProdAdmin"></div>
   </div>
 
-  <!-- ========== TAB MI NEGOCIO ========== -->
   <div class="vista" id="tNegocio">
     <div class="seccion-titulo">Mi negocio</div>
     <div class="campo"><label for="cfgNombre">Nombre</label><input id="cfgNombre" type="text"></div>
@@ -123,7 +138,6 @@
 
 <button class="fab" id="fabAgregar" title="Agregar producto" aria-label="Agregar producto" style="display:none">+</button>
 
-<!-- Modal producto -->
 <div class="modal-fondo" id="modalProd">
   <div class="modal">
     <h3 id="modalProdTitulo">Nuevo producto</h3>
@@ -139,109 +153,198 @@
 
 <div class="guardado" id="toastGuardado">✓ Guardado</div>
 
-<!-- Nav inferior -->
-<nav class="nav-inferior">
+<nav class="nav-inferior" id="navInferior" style="display:none">
   <button data-tab="tPedidos" class="activo"><span class="ni">📋</span>Pedidos <span id="badgePend"></span></button>
   <button data-tab="tProductos"><span class="ni">🏷️</span>Productos</button>
   <button data-tab="tNegocio"><span class="ni">⚙️</span>Mi negocio</button>
 </nav>
 
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script src="core.js"></script>
 <script>
-/* ============ PANEL EMPRESA v0.1 ============ */
+/* ============ PANEL EMPRESA v0.2 ============ */
 (function () {
   var DATOS = null;
+  var usuario = null;
+  var esAdmin = false;
   var empId = null;
+  var empDatos = null;       // doc fresco de la empresa
+  var productos = [];
+  var pedidos = [];
+  var pararEscucha = null;
   var filtro = 'activos';
   var editandoProdId = null;
   var DIAS_NOM = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
   var ESTADOS = {
-    enviado:   { pill: 'p-enviado',   texto: 'Nuevo',      accion: '✓ Tomar pedido',    sig: 'recibido',  btn: '' },
-    recibido:  { pill: 'p-recibido',  texto: 'Tomado',     accion: '🛵 Salió el reparto', sig: 'encamino',  btn: 'azulado' },
-    encamino:  { pill: 'p-encamino',  texto: 'En camino',  accion: '✅ Entregado',        sig: 'entregado', btn: 'verde' },
+    enviado:   { pill: 'p-enviado',   texto: 'Nuevo',      accion: '✓ Tomar pedido',      sig: 'recibido',  btn: '' },
+    recibido:  { pill: 'p-recibido',  texto: 'Tomado',     accion: '🛵 Salió el reparto',  sig: 'encamino',  btn: 'azulado' },
+    encamino:  { pill: 'p-encamino',  texto: 'En camino',  accion: '✅ Entregado',          sig: 'entregado', btn: 'verde' },
     entregado: { pill: 'p-entregado', texto: 'Entregado',  accion: null },
     cancelado: { pill: 'p-cancelado', texto: 'Cancelado',  accion: null }
   };
 
   var $ = function (id) { return document.getElementById(id); };
-  function lsKey(sufijo) { return 'rm_emp_' + empId + '_' + sufijo; }
-  function leerLS(sufijo, porDefecto) {
-    try { var v = localStorage.getItem(lsKey(sufijo)); return v ? JSON.parse(v) : porDefecto; }
-    catch (e) { return porDefecto; }
-  }
-  function guardarLS(sufijo, valor) { localStorage.setItem(lsKey(sufijo), JSON.stringify(valor)); }
   function toast() {
     $('toastGuardado').style.display = 'block';
     setTimeout(function () { $('toastGuardado').style.display = 'none'; }, 1400);
   }
+  function mostrar(id, si) { $(id).style.display = si ? 'block' : 'none'; }
 
-  /* ---------- Seed de pedidos demo (con fecha de hoy) ---------- */
-  function seedPedidos() {
-    var hoy = new Date();
-    function hora(h, m) {
-      var d = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), h, m);
-      return { ts: d.getTime(), txt: d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) };
-    }
-    var base = [
-      { codigo: 'K3F7', estado: 'enviado',  h: hora(9, 12),
-        items: [{ nombre: 'Garrafa 10 kg (canje)', precio: 23000, cant: 1 }],
-        direccion: 'Av. del Trabajo 3420, G. Catán', nota: 'Portón negro, tocar bocina' },
-      { codigo: 'M8Q2', estado: 'enviado',  h: hora(9, 47),
-        items: [{ nombre: 'Garrafa 10 kg (canje)', precio: 23000, cant: 2 }],
-        direccion: 'Los Andes 1250, G. Catán', nota: '' },
-      { codigo: 'B5T9', estado: 'recibido', h: hora(8, 30),
-        items: [{ nombre: 'Bidón de agua 20 L (retornable)', precio: 5500, cant: 3 }],
-        direccion: 'Perú 890, Virrey del Pino', nota: 'Dejar con el encargado' },
-      { codigo: 'X2N4', estado: 'encamino', h: hora(8, 5),
-        items: [{ nombre: 'Garrafa 15 kg (canje)', precio: 34000, cant: 1 },
-                { nombre: 'Bidón de agua 12 L', precio: 4200, cant: 2 }],
-        direccion: 'Estanislao del Campo 2277, G. Catán', nota: '' },
-      { codigo: 'J7R1', estado: 'entregado', h: hora(7, 40),
-        items: [{ nombre: 'Garrafa 10 kg (canje)', precio: 23000, cant: 1 }],
-        direccion: 'Chubut 455, G. Catán', nota: '' }
-    ];
-    return base.map(function (p) {
-      var total = 0;
-      p.items.forEach(function (it) { total += it.precio * it.cant; });
-      return { codigo: p.codigo, estado: p.estado, ts: p.h.ts, horaTxt: p.h.txt,
-               items: p.items, total: total, direccion: p.direccion, nota: p.nota };
-    });
-  }
-
-  /* ---------- Arranque ---------- */
-  RM.initTenant(function (err, datos) {
-    if (err) { $('brandNombre').textContent = 'Error: ' + err; return; }
+  /* ---------- Arranque: tenant + auth ---------- */
+  RM.initTenant({ fresco: true }, function (err, datos) {
+    if (err) { alert('Error: ' + err); return; }
     DATOS = datos;
-    if (RM_CONFIG.DEMO) $('demoBanner').style.display = 'block';
-    var html = '';
-    datos.empresas.forEach(function (e) {
-      html += '<option value="' + e.id + '">' + e.nombre + '</option>';
+    if (datos.modoDemo || datos.faltaSeed) {
+      mostrar('pAcceso', false);
+      document.body.insertAdjacentHTML('beforeend',
+        '<div class="pantalla-acceso"><span class="ico">⚙️</span><h2>Falta inicializar los datos</h2>' +
+        '<p>Abrí <b>setup.html</b> con la cuenta de administrador para crear el tenant en Firestore.</p></div>');
+      return;
+    }
+    RM.onAuth(function (u) {
+      usuario = u;
+      pintarSesion();
+      decidirPantalla();
     });
-    $('selEmpresa').innerHTML = html;
-    $('selEmpresa').addEventListener('change', function () { cargarEmpresa(this.value); });
-    cargarEmpresa(datos.empresas[0].id);
   });
 
-  function empresaActual() {
-    var emp = null;
-    DATOS.empresas.forEach(function (e) { if (e.id === empId) emp = e; });
-    return emp;
+  function pintarSesion() {
+    var chip = $('chipSesion');
+    if (!usuario) { chip.style.display = 'none'; return; }
+    chip.style.display = 'block';
+    chip.textContent = '👤 ' + (usuario.displayName || usuario.email || '').split(' ')[0] + ' · salir';
+    chip.onclick = function () {
+      if (confirm('¿Cerrar sesión?')) RM.logout(function () { window.location.reload(); });
+    };
+  }
+
+  function decidirPantalla() {
+    if (!usuario) {
+      mostrar('pAcceso', true); mostrar('panel', false); mostrar('navInferior', false);
+      mostrar('pSinEmpresa', false); mostrar('cajaSelector', false);
+      return;
+    }
+    mostrar('pAcceso', false);
+    esAdmin = (usuario.email === RM_CONFIG.SUPER_ADMIN);
+    if (esAdmin) {
+      // Super admin: selector con todas las empresas
+      var html = '';
+      DATOS.empresas.forEach(function (e) { html += '<option value="' + e.id + '">' + e.nombre + '</option>'; });
+      $('selEmpresa').innerHTML = html;
+      mostrar('cajaSelector', true);
+      $('selEmpresa').onchange = function () { cargarEmpresa(this.value); };
+      cargarEmpresa(DATOS.empresas[0].id);
+      return;
+    }
+    // Usuario común: buscar vinculación en su perfil
+    RM.perfilUsuario(usuario.uid, function (e, perfil) {
+      if (perfil && perfil.empresaId) {
+        cargarEmpresa(perfil.empresaId);
+      } else {
+        mostrar('pSinEmpresa', true);
+        $('pSinEmpresaTxt').textContent =
+          'Pedile al administrador del marketplace que active tu negocio con el email ' + (usuario.email || '') + '.';
+      }
+    });
   }
 
   function cargarEmpresa(id) {
     empId = id;
-    $('selEmpresa').value = id;
-    var emp = empresaActual();
-    $('brandNombre').textContent = emp.nombre;
-    // Seeds si es la primera vez en este dispositivo
-    if (!localStorage.getItem(lsKey('pedidos'))) guardarLS('pedidos', seedPedidos());
-    if (!localStorage.getItem(lsKey('productos'))) guardarLS('productos', DATOS.productos[id] || []);
-    if (!localStorage.getItem(lsKey('config'))) {
-      guardarLS('config', { nombre: emp.nombre, direccion: emp.direccion, whatsapp: emp.whatsapp,
-        tiempoEstimadoMin: emp.tiempoEstimadoMin, horario: emp.horario });
-    }
-    pintarPedidos(); pintarProductos(); pintarConfig();
+    RM.leerEmpresaFresca(id, function (e, emp, prods) {
+      if (e) { alert('Error: ' + e); return; }
+      empDatos = emp;
+      productos = prods;
+      $('brandNombre').textContent = emp.nombre;
+      mostrar('panel', true); mostrar('navInferior', true); mostrar('pSinEmpresa', false);
+      pintarProductos();
+      pintarConfig();
+      escucharPedidos();
+    });
   }
+
+  /* ---------- Pedidos en vivo ---------- */
+  function escucharPedidos() {
+    if (pararEscucha) { pararEscucha(); pararEscucha = null; }
+    $('listaPedidos').innerHTML = '<div class="vacio">Cargando pedidos…</div>';
+    pararEscucha = RM.escucharPedidosEmpresa(empId, function (e, lista) {
+      if (e) { $('listaPedidos').innerHTML = '<div class="vacio">Error: ' + e + '</div>'; return; }
+      pedidos = lista;
+      pintarPedidos();
+    });
+  }
+
+  document.addEventListener('click', function (e) {
+    var f = e.target.closest('[data-f]');
+    if (!f) return;
+    filtro = f.getAttribute('data-f');
+    var botones = document.querySelectorAll('[data-f]');
+    for (var i = 0; i < botones.length; i++) botones[i].classList.remove('activo');
+    f.classList.add('activo');
+    pintarPedidos();
+  });
+
+  function pintarPedidos() {
+    var pend = pedidos.filter(function (p) { return ['enviado', 'recibido', 'encamino'].indexOf(p.estado) !== -1; }).length;
+    $('badgePend').textContent = pend ? '(' + pend + ')' : '';
+    var lista = pedidos.filter(function (p) {
+      if (filtro === 'activos') return ['enviado', 'recibido', 'encamino'].indexOf(p.estado) !== -1;
+      if (filtro === 'entregados') return p.estado === 'entregado';
+      return true;
+    });
+    if (!lista.length) {
+      $('listaPedidos').innerHTML = '<div class="vacio"><span class="ico">📭</span>No hay pedidos ' +
+        (filtro === 'activos' ? 'activos ahora. Cuando un cliente pida, aparece acá al instante.' : 'en este filtro.') + '</div>';
+      return;
+    }
+    var html = '';
+    lista.forEach(function (p) {
+      var E = ESTADOS[p.estado] || ESTADOS.enviado;
+      var lineas = p.items.map(function (it) {
+        return '▪ ' + it.cant + ' x ' + it.nombre + ' — ' + RM.formatPesos(it.precio * it.cant);
+      }).join('<br>');
+      var telCliente = p.clienteTelefono
+        ? '<a class="btn-wa-cli" target="_blank" rel="noopener" href="' +
+          RM.waLink(('54' + String(p.clienteTelefono).replace(/\D/g, '')).replace(/^5454/, '54'),
+                    'Hola! Te escribimos de ' + (empDatos ? empDatos.nombre : '') + ' por tu pedido #' + p.codigo) +
+          '">💬 WhatsApp del cliente</a>'
+        : '';
+      html += '<div class="pedido e-' + p.estado + '">' +
+        '<div class="ped-cab"><span class="ped-cod">#' + p.codigo +
+        (p.clienteNombre ? ' · ' + p.clienteNombre : '') + '</span>' +
+        '<span class="pill ' + E.pill + '">' + E.texto + '</span></div>' +
+        '<div class="ped-hora">🕐 ' + (p.fechaTexto || '') + '</div>' +
+        '<div class="ped-lineas">' + lineas + '</div>' +
+        '<div class="ped-dir">📍 ' + p.direccion +
+        (p.geo ? ' · <a target="_blank" rel="noopener" href="https://maps.google.com/?q=' + p.geo.lat + ',' + p.geo.lng + '">ver mapa</a>' : '') + '</div>' +
+        (p.nota ? '<div class="ped-nota">📝 ' + p.nota + '</div>' : '') +
+        telCliente +
+        '<div class="ped-pie"><span class="ped-tot">' + RM.formatPesos(p.total) + '</span>' +
+        (E.accion
+          ? '<div><button class="btn-cancelar" data-cancelar="' + p.docId + '">Cancelar</button> ' +
+            '<button class="btn-estado ' + E.btn + '" data-avanzar="' + p.docId + '" data-sig="' + E.sig + '">' + E.accion + '</button></div>'
+          : '') +
+        '</div></div>';
+    });
+    $('listaPedidos').innerHTML = html;
+  }
+
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest('[data-avanzar]');
+    var c = e.target.closest('[data-cancelar]');
+    if (!a && !c) return;
+    if (a) {
+      RM.actualizarPedido(a.getAttribute('data-avanzar'), { estado: a.getAttribute('data-sig') }, function (err) {
+        if (err) alert('No se pudo actualizar: ' + err);
+      });
+    }
+    if (c && confirm('¿Cancelar este pedido?')) {
+      RM.actualizarPedido(c.getAttribute('data-cancelar'), { estado: 'cancelado' }, function (err) {
+        if (err) alert('No se pudo cancelar: ' + err);
+      });
+    }
+  });
 
   /* ---------- Tabs ---------- */
   document.addEventListener('click', function (e) {
@@ -257,79 +360,14 @@
     window.scrollTo(0, 0);
   });
 
-  /* ---------- Pedidos ---------- */
-  document.addEventListener('click', function (e) {
-    var f = e.target.closest('[data-f]');
-    if (!f) return;
-    filtro = f.getAttribute('data-f');
-    var botones = document.querySelectorAll('[data-f]');
-    for (var i = 0; i < botones.length; i++) botones[i].classList.remove('activo');
-    f.classList.add('activo');
-    pintarPedidos();
-  });
-
-  function pintarPedidos() {
-    var pedidos = leerLS('pedidos', []);
-    pedidos.sort(function (a, b) { return b.ts - a.ts; });
-    var pend = pedidos.filter(function (p) { return p.estado === 'enviado' || p.estado === 'recibido' || p.estado === 'encamino'; }).length;
-    $('badgePend').textContent = pend ? '(' + pend + ')' : '';
-    var lista = pedidos.filter(function (p) {
-      if (filtro === 'activos') return ['enviado', 'recibido', 'encamino'].indexOf(p.estado) !== -1;
-      if (filtro === 'entregados') return p.estado === 'entregado';
-      return true;
-    });
-    if (!lista.length) {
-      $('listaPedidos').innerHTML = '<div class="vacio"><span class="ico">📭</span>No hay pedidos ' +
-        (filtro === 'activos' ? 'activos ahora.' : 'en este filtro.') + '</div>';
-      return;
-    }
-    var html = '';
-    lista.forEach(function (p) {
-      var E = ESTADOS[p.estado];
-      var lineas = p.items.map(function (it) {
-        return '▪ ' + it.cant + ' x ' + it.nombre + ' — ' + RM.formatPesos(it.precio * it.cant);
-      }).join('<br>');
-      html += '<div class="pedido e-' + p.estado + '">' +
-        '<div class="ped-cab"><span class="ped-cod">#' + p.codigo + '</span>' +
-        '<span class="pill ' + E.pill + '">' + E.texto + '</span></div>' +
-        '<div class="ped-hora">🕐 ' + p.horaTxt + '</div>' +
-        '<div class="ped-lineas">' + lineas + '</div>' +
-        '<div class="ped-dir">📍 ' + p.direccion + '</div>' +
-        (p.nota ? '<div class="ped-nota">📝 ' + p.nota + '</div>' : '') +
-        '<div class="ped-pie"><span class="ped-tot">' + RM.formatPesos(p.total) + '</span>' +
-        (E.accion
-          ? '<div><button class="btn-cancelar" data-cancelar="' + p.codigo + '">Cancelar</button> ' +
-            '<button class="btn-estado ' + E.btn + '" data-avanzar="' + p.codigo + '">' + E.accion + '</button></div>'
-          : '') +
-        '</div></div>';
-    });
-    $('listaPedidos').innerHTML = html;
-  }
-
-  document.addEventListener('click', function (e) {
-    var a = e.target.closest('[data-avanzar]');
-    var c = e.target.closest('[data-cancelar]');
-    if (!a && !c) return;
-    var codigo = (a || c).getAttribute(a ? 'data-avanzar' : 'data-cancelar');
-    var pedidos = leerLS('pedidos', []);
-    pedidos.forEach(function (p) {
-      if (p.codigo !== codigo) return;
-      if (a) p.estado = ESTADOS[p.estado].sig || p.estado;
-      if (c && confirm('¿Cancelar el pedido #' + codigo + '?')) p.estado = 'cancelado';
-    });
-    guardarLS('pedidos', pedidos);
-    pintarPedidos();
-  });
-
-  /* ---------- Productos ---------- */
+  /* ---------- Productos (Firestore) ---------- */
   function pintarProductos() {
-    var prods = leerLS('productos', []);
-    if (!prods.length) {
+    if (!productos.length) {
       $('listaProdAdmin').innerHTML = '<div class="vacio"><span class="ico">🏷️</span>Todavía no cargaste productos.<br>Tocá el botón + para agregar el primero.</div>';
       return;
     }
     var html = '';
-    prods.forEach(function (p) {
+    productos.forEach(function (p) {
       html += '<div class="prod-admin' + (p.activo ? '' : ' inactivo') + '">' +
         '<div><div class="nom">' + p.nombre + '</div>' +
         '<button class="pre" data-precio="' + p.id + '">' + RM.formatPesos(p.precio) + ' ✎</button></div>' +
@@ -341,33 +379,37 @@
     $('listaProdAdmin').innerHTML = html;
   }
 
+  function prodPorId(id) {
+    var prod = null;
+    productos.forEach(function (p) { if (p.id === id) prod = p; });
+    return prod;
+  }
+
   document.addEventListener('click', function (e) {
     var pr = e.target.closest('[data-precio]');
     var tg = e.target.closest('[data-toggle]');
     var ed = e.target.closest('[data-editar]');
     if (!pr && !tg && !ed) return;
-    var prods = leerLS('productos', []);
     if (pr) {
-      var id = pr.getAttribute('data-precio');
-      var prod = null;
-      prods.forEach(function (p) { if (p.id === id) prod = p; });
+      var prod = prodPorId(pr.getAttribute('data-precio'));
       var nuevo = prompt('Nuevo precio para "' + prod.nombre + '":', prod.precio);
       if (nuevo !== null && !isNaN(Number(nuevo)) && Number(nuevo) >= 0) {
         prod.precio = Math.round(Number(nuevo));
-        guardarLS('productos', prods); pintarProductos(); toast();
+        RM.guardarProducto(empId, prod, function (err) {
+          if (err) { alert('No se pudo guardar: ' + err); return; }
+          pintarProductos(); toast();
+        });
       }
     }
     if (tg) {
-      var idT = tg.getAttribute('data-toggle');
-      prods.forEach(function (p) { if (p.id === idT) p.activo = !p.activo; });
-      guardarLS('productos', prods); pintarProductos(); toast();
+      var prodT = prodPorId(tg.getAttribute('data-toggle'));
+      prodT.activo = !prodT.activo;
+      RM.guardarProducto(empId, prodT, function (err) {
+        if (err) { prodT.activo = !prodT.activo; alert('No se pudo guardar: ' + err); return; }
+        pintarProductos(); toast();
+      });
     }
-    if (ed) {
-      var idE = ed.getAttribute('data-editar');
-      var prodE = null;
-      prods.forEach(function (p) { if (p.id === idE) prodE = p; });
-      abrirModalProd(prodE);
-    }
+    if (ed) abrirModalProd(prodPorId(ed.getAttribute('data-editar')));
   });
 
   function abrirModalProd(prod) {
@@ -391,28 +433,25 @@
     var pre = Number($('prodPre').value);
     if (!nom) { alert('Escribí el nombre del producto.'); return; }
     if (isNaN(pre) || pre < 0) { alert('Poné un precio válido.'); return; }
-    var prods = leerLS('productos', []);
-    if (editandoProdId) {
-      prods.forEach(function (p) {
-        if (p.id === editandoProdId) { p.nombre = nom; p.precio = Math.round(pre); p.categoria = $('prodCat').value; }
-      });
-    } else {
-      prods.push({ id: 'p' + Date.now(), nombre: nom, precio: Math.round(pre),
-                   categoria: $('prodCat').value, activo: true });
-    }
-    guardarLS('productos', prods);
-    $('modalProd').classList.remove('abierto');
-    pintarProductos(); toast();
+    var prod = editandoProdId ? prodPorId(editandoProdId) : { activo: true };
+    prod.nombre = nom;
+    prod.precio = Math.round(pre);
+    prod.categoria = $('prodCat').value;
+    RM.guardarProducto(empId, prod, function (err, id) {
+      if (err) { alert('No se pudo guardar: ' + err); return; }
+      if (!editandoProdId) { prod.id = id; productos.push(prod); }
+      $('modalProd').classList.remove('abierto');
+      pintarProductos(); toast();
+    });
   });
 
-  /* ---------- Mi negocio ---------- */
+  /* ---------- Mi negocio (Firestore) ---------- */
   function pintarConfig() {
-    var cfg = leerLS('config', {});
-    $('cfgNombre').value = cfg.nombre || '';
-    $('cfgDir').value = cfg.direccion || '';
-    $('cfgWa').value = cfg.whatsapp || '';
-    $('cfgTiempo').value = cfg.tiempoEstimadoMin || 45;
-    var h = cfg.horario || { desde: '08:00', hasta: '19:00', dias: [1,2,3,4,5,6], h24: false };
+    $('cfgNombre').value = empDatos.nombre || '';
+    $('cfgDir').value = empDatos.direccion || '';
+    $('cfgWa').value = empDatos.whatsapp || '';
+    $('cfgTiempo').value = empDatos.tiempoEstimadoMin || 45;
+    var h = empDatos.horario || { desde: '08:00', hasta: '19:00', dias: [1,2,3,4,5,6], h24: false };
     $('cfgDesde').value = h.desde;
     $('cfgHasta').value = h.hasta;
     var html = '';
@@ -429,17 +468,24 @@
     for (var i = 0; i < checks.length; i++) dias.push(Number(checks[i].value));
     var wa = $('cfgWa').value.replace(/\D/g, '');
     if (wa && wa.length < 10) { alert('Revisá el número de WhatsApp (formato 549...).'); return; }
-    var cfg = {
-      nombre: $('cfgNombre').value.trim(),
+    var cambios = {
+      nombre: $('cfgNombre').value.trim() || empDatos.nombre,
       direccion: $('cfgDir').value.trim(),
       whatsapp: wa,
       tiempoEstimadoMin: Math.max(5, Number($('cfgTiempo').value) || 45),
       horario: { desde: $('cfgDesde').value || '08:00', hasta: $('cfgHasta').value || '19:00',
                  dias: dias.length ? dias : [1,2,3,4,5,6], h24: false }
     };
-    guardarLS('config', cfg);
-    $('brandNombre').textContent = cfg.nombre || empresaActual().nombre;
-    toast();
+    RM.guardarEmpresa(empId, cambios, function (err) {
+      if (err) { alert('No se pudo guardar: ' + err); return; }
+      empDatos.nombre = cambios.nombre;
+      $('brandNombre').textContent = cambios.nombre;
+      toast();
+    });
+  });
+
+  $('btnLogin').addEventListener('click', function () {
+    RM.login(function (e) { if (e) alert('No se pudo ingresar: ' + e); });
   });
 
 })();
