@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<!--
+  ARCHIVO: simulador.html
+  VERSIÓN: v0.1
+  FECHA: 01/08/2026
+  PROYECTO: CompraZona — Simulador de pruebas de campo | RavenTechs
+  CHANGELOG:
+  - v0.1 (01/08/2026): Genera pedidos reales en Firestore con clientes ficticios,
+    distintas empresas, productos y estados. Solo accesible como super admin.
+    Incluye limpieza de datos de prueba y reporte de resultados.
+-->
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulador — CompraZona</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="estilos.css">
+<style>
+.sim-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+.kpi{background:var(--c-tarjeta);border:1.5px solid var(--c-borde);border-radius:14px;
+     padding:14px;text-align:center}
+.kpi .n{font-size:28px;font-weight:800;color:var(--c-primario)}
+.kpi .l{font-size:12px;color:var(--c-suave);font-weight:700;margin-top:2px}
+.log-box{background:#0D1117;border-radius:14px;padding:14px;font-family:ui-monospace,monospace;
+         font-size:12.5px;line-height:1.8;color:#C9D1D9;max-height:320px;overflow-y:auto;
+         margin-bottom:14px;white-space:pre-wrap}
+.log-ok{color:#56D364}.log-err{color:#FF7B72}.log-info{color:#79C0FF}.log-warn{color:#E3B341}
+.pedido-sim{background:var(--c-tarjeta);border:1.5px solid var(--c-borde);border-left-width:5px;
+            border-radius:14px;padding:12px 14px;margin-bottom:10px}
+.pedido-sim.e-enviado{border-left-color:var(--c-primario)}
+.pedido-sim.e-recibido{border-left-color:#3E7BC0}
+.pedido-sim.e-encamino{border-left-color:var(--c-secundario)}
+.pedido-sim.e-entregado{border-left-color:var(--c-ok)}
+.ps-top{display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px}
+.ps-cod{font-weight:800}.ps-estado{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:20px}
+.e-e{background:#FFF2E3;color:#A85B12}.e-r{background:#E7EEF8;color:#2C5E9E}
+.e-en{background:#E7F3F8;color:#1E6E8C}.e-et{background:#E7F4EA;color:var(--c-ok)}
+.ps-emp{font-size:12.5px;color:var(--c-secundario);font-weight:700;margin-bottom:2px}
+.ps-det{font-size:12.5px;color:var(--c-suave)}
+.ps-tot{font-weight:800;font-size:14px;margin-top:6px}
+.btn-peligro{background:#FF5252;color:#fff;font-weight:800;font-size:14px;
+             padding:13px;border-radius:14px;width:100%;margin-top:8px}
+.seccion-sim{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
+             color:var(--c-suave);margin:18px 0 10px}
+</style>
+</head>
+<body>
+<header class="app">
+  <div class="fila-header">
+    <div class="brand">
+      <div class="logo">🧪</div>
+      <div>
+        <h1>Simulador de Pruebas</h1>
+        <div class="lema">CompraZona · Solo super admin</div>
+      </div>
+    </div>
+    <button class="sesion-chip" id="chipSesion" style="display:none"></button>
+  </div>
+</header>
+
+<div class="pantalla-acceso" id="pAcceso" style="display:none">
+  <span class="ico">🧪</span>
+  <h2>Acceso restringido</h2>
+  <p>Solo accesible con la cuenta de super administrador.</p>
+  <button class="btn-principal" id="btnLogin">Ingresar con Google</button>
+</div>
+
+<main id="panel" style="display:none;padding:16px;max-width:560px;margin:0 auto">
+
+  <div class="sim-grid" id="kpiGrid">
+    <div class="kpi"><div class="n" id="kpTotal">0</div><div class="l">Pedidos generados</div></div>
+    <div class="kpi"><div class="n" id="kpMonto">$0</div><div class="l">Total simulado</div></div>
+    <div class="kpi"><div class="n" id="kpEmpresas">0</div><div class="l">Empresas involucradas</div></div>
+    <div class="kpi"><div class="n" id="kpClientes">0</div><div class="l">Clientes ficticios</div></div>
+  </div>
+
+  <div class="log-box" id="logBox">Listo para simular. Tocá el botón para generar pedidos reales en Firestore.\n</div>
+
+  <button class="btn-principal" id="btnSimular" style="width:100%;font-size:16px;margin-bottom:10px">
+    🚀 Generar 8 pedidos de prueba
+  </button>
+
+  <div id="zonaPedidos"></div>
+
+  <div id="zonaLimpiar" style="display:none">
+    <div class="seccion-sim">Limpiar datos de prueba</div>
+    <p style="font-size:13px;color:var(--c-suave);margin-bottom:10px">
+      Borra todos los pedidos que creó esta simulación. No afecta pedidos reales.
+    </p>
+    <button class="btn-peligro" id="btnLimpiar">🗑 Borrar pedidos de prueba</button>
+  </div>
+
+</main>
+
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="core.js"></script>
+<script>
+(function () {
+  var db, auth, uid;
+  var TENANT = 'garrafas-agua';
+  var IDS_GENERADOS = [];
+
+  var $ = function (id) { return document.getElementById(id); };
+  function log(txt, cls) {
+    var box = $('logBox');
+    box.innerHTML += '<span class="log-' + (cls||'info') + '">' + txt + '</span>\n';
+    box.scrollTop = box.scrollHeight;
+  }
+
+  // ── Clientes ficticios ──
+  var CLIENTES = [
+    { nombre: 'María González',   dir: 'Av. Simón Bolívar 1240, G. Catán',    tel: '1144556677', nota: 'Portón verde, tocar timbre' },
+    { nombre: 'Carlos Rodríguez', dir: 'Estanislao del Campo 880, G. Catán',  tel: '1155667788', nota: '' },
+    { nombre: 'Ana Martínez',     dir: 'Los Aromos 2345, Virrey del Pino',    tel: '1166778899', nota: 'Casa esquina' },
+    { nombre: 'José Fernández',   dir: 'Ruta 21 km 31, G. Catán',             tel: '1177889900', nota: 'Entregar en portería' },
+    { nombre: 'Laura Pérez',      dir: 'Av. del Trabajo 4100, G. Catán',      tel: '1188990011', nota: '' },
+  ];
+
+  // ── Pedidos a simular (empresa, productos, estado) ──
+  var PEDIDOS_SIM = [
+    { empId:'sanjorge', empNombre:'Distribuidora San Jorge', wa:'5491100000002',
+      items:[{id:'g10',nombre:'Garrafa 10 kg (canje)',precio:23000,cant:2},
+             {id:'b20',nombre:'Bidón de agua 20 L',precio:5500,cant:1}],
+      estado:'enviado', clienteIdx:0, minsAtras:3 },
+
+    { empId:'sanjorge', empNombre:'Distribuidora San Jorge', wa:'5491100000002',
+      items:[{id:'g15',nombre:'Garrafa 15 kg (canje)',precio:34000,cant:1}],
+      estado:'enviado', clienteIdx:1, minsAtras:8 },
+
+    { empId:'sanjorge', empNombre:'Distribuidora San Jorge', wa:'5491100000002',
+      items:[{id:'b20',nombre:'Bidón de agua 20 L',precio:5500,cant:3}],
+      estado:'recibido', clienteIdx:2, minsAtras:45 },
+
+    { empId:'eltano', empNombre:'Garrafas El Tano', wa:'5491100000001',
+      items:[{id:'g10',nombre:'Garrafa 10 kg (canje)',precio:22500,cant:1}],
+      estado:'enviado', clienteIdx:3, minsAtras:2 },
+
+    { empId:'eltano', empNombre:'Garrafas El Tano', wa:'5491100000001',
+      items:[{id:'g10',nombre:'Garrafa 10 kg (canje)',precio:22500,cant:3},
+             {id:'g45',nombre:'Tubo 45 kg (canje)',precio:97000,cant:1}],
+      estado:'encamino', clienteIdx:4, minsAtras:62 },
+
+    { empId:'aguapura', empNombre:'Agua Pura Litoral', wa:'5491100000003',
+      items:[{id:'b20',nombre:'Bidón de agua 20 L',precio:5200,cant:4}],
+      estado:'entregado', clienteIdx:0, minsAtras:120 },
+
+    { empId:'gasexpress', empNombre:'Gas Express 24hs', wa:'5491100000004',
+      items:[{id:'g10',nombre:'Garrafa 10 kg (canje)',precio:24500,cant:1}],
+      estado:'recibido', clienteIdx:2, minsAtras:30 },
+
+    { empId:'sanjorge', empNombre:'Distribuidora San Jorge', wa:'5491100000002',
+      items:[{id:'g10',nombre:'Garrafa 10 kg (canje)',precio:23000,cant:2},
+             {id:'b12',nombre:'Bidón de agua 12 L',precio:4200,cant:2}],
+      estado:'encamino', clienteIdx:1, minsAtras:90 },
+  ];
+
+  function codigoPedido() {
+    var chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789', c = '';
+    for (var i = 0; i < 4; i++) c += chars.charAt(Math.floor(Math.random() * chars.length));
+    return c;
+  }
+  function formatPesos(n) {
+    return '$' + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  }
+  function fechaTxt(minsAtras) {
+    var d = new Date(Date.now() - minsAtras * 60000);
+    return d.toLocaleDateString('es-AR') + ' ' +
+           d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+  }
+
+  // ── Inicialización ──
+  try {
+    firebase.initializeApp(RM_CONFIG.FIREBASE);
+    auth = firebase.auth();
+    db   = firebase.firestore();
+  } catch(e) { console.error(e); }
+
+  auth.onAuthStateChanged(function(u) {
+    if (!u) {
+      $('pAcceso').style.display = 'block';
+      $('panel').style.display   = 'none';
+      return;
+    }
+    if (u.email !== RM_CONFIG.SUPER_ADMIN) {
+      $('pAcceso').style.display = 'block';
+      $('pAcceso').querySelector('p').textContent = 'La cuenta ' + u.email + ' no tiene acceso.';
+      return;
+    }
+    uid = u.uid;
+    $('pAcceso').style.display   = 'none';
+    $('panel').style.display     = 'block';
+    var chip = $('chipSesion');
+    chip.style.display = 'block';
+    chip.textContent = '👤 ' + (u.displayName||'').split(' ')[0] + ' · salir';
+    chip.onclick = function() { auth.signOut().then(function(){window.location.reload();}); };
+  });
+  $('btnLogin').addEventListener('click', function() {
+    var p = new firebase.auth.GoogleAuthProvider();
+    auth.signInWithPopup(p).catch(function(e){alert(e.message);});
+  });
+
+  // ── Generar pedidos ──
+  $('btnSimular').addEventListener('click', function() {
+    $('btnSimular').disabled = true;
+    $('btnSimular').textContent = 'Generando…';
+    $('logBox').innerHTML = '';
+    $('zonaPedidos').innerHTML = '';
+    IDS_GENERADOS = [];
+    log('Iniciando simulación de ' + PEDIDOS_SIM.length + ' pedidos…', 'info');
+
+    var ref = db.collection('tenants').doc(TENANT).collection('pedidos');
+    var promesas = PEDIDOS_SIM.map(function(sim, i) {
+      var cli = CLIENTES[sim.clienteIdx];
+      var total = sim.items.reduce(function(s,it){ return s + it.precio * it.cant; }, 0);
+      var pedido = {
+        _simulado: true,       // marca para limpiar después
+        codigo: codigoPedido(),
+        clienteUid: uid,
+        clienteNombre: cli.nombre,
+        clienteTelefono: cli.tel,
+        empresaId: sim.empId,
+        empresaNombre: sim.empNombre,
+        whatsapp: sim.wa,
+        items: sim.items,
+        total: total,
+        direccion: cli.dir,
+        nota: cli.nota,
+        geo: null,
+        ts: Date.now() - sim.minsAtras * 60000,
+        fechaTexto: fechaTxt(sim.minsAtras),
+        estado: sim.estado
+      };
+      return ref.add(pedido).then(function(docRef) {
+        IDS_GENERADOS.push(docRef.id);
+        log('✓ Pedido #' + pedido.codigo + ' — ' + sim.empNombre +
+            ' — ' + cli.nombre + ' — ' + sim.estado + ' — ' + formatPesos(total), 'ok');
+        return { pedido: pedido, id: docRef.id };
+      });
+    });
+
+    Promise.all(promesas).then(function(resultados) {
+      log('', '');
+      log('════ SIMULACIÓN COMPLETADA ════', 'warn');
+
+      // KPIs
+      var total = resultados.reduce(function(s,r){ return s + r.pedido.total; }, 0);
+      var empresas = [...new Set(resultados.map(function(r){return r.pedido.empresaId;}))].length;
+      var clientes = [...new Set(resultados.map(function(r){return r.pedido.clienteNombre;}))].length;
+      $('kpTotal').textContent = resultados.length;
+      $('kpMonto').textContent = formatPesos(total);
+      $('kpEmpresas').textContent = empresas;
+      $('kpClientes').textContent = clientes;
+
+      log('Total pedidos: ' + resultados.length, 'info');
+      log('Monto total: ' + formatPesos(total), 'info');
+      log('Empresas: ' + empresas + ' | Clientes ficticios: ' + clientes, 'info');
+      log('', '');
+      log('Abrí admin.html y empresa.html para ver los datos en tiempo real.', 'warn');
+
+      // Tarjetas visuales
+      var ETIQUETAS = { enviado:'Nuevo', recibido:'Tomado', encamino:'En camino', entregado:'Entregado' };
+      var CLASES = { enviado:'e-e', recibido:'e-r', encamino:'e-en', entregado:'e-et' };
+      var html = '<div class="seccion-sim">Pedidos generados</div>';
+      resultados.forEach(function(r) {
+        var p = r.pedido;
+        var items = p.items.map(function(it){ return it.cant+'x '+it.nombre; }).join(', ');
+        html += '<div class="pedido-sim e-' + p.estado + '">' +
+          '<div class="ps-top">' +
+          '<span class="ps-cod">#' + p.codigo + ' · ' + p.clienteNombre + '</span>' +
+          '<span class="ps-estado ' + CLASES[p.estado] + '">' + ETIQUETAS[p.estado] + '</span>' +
+          '</div>' +
+          '<div class="ps-emp">🏪 ' + p.empresaNombre + '</div>' +
+          '<div class="ps-det">' + items + '</div>' +
+          '<div class="ps-det">📍 ' + p.direccion + '</div>' +
+          '<div class="ps-det">🕐 ' + p.fechaTexto + '</div>' +
+          '<div class="ps-tot">' + formatPesos(p.total) + '</div>' +
+          '</div>';
+      });
+      $('zonaPedidos').innerHTML = html;
+      $('zonaLimpiar').style.display = 'block';
+      $('btnSimular').textContent = '✅ Simulación completada';
+
+    }).catch(function(e) {
+      log('❌ Error: ' + (e.message||e), 'err');
+      log('Verificá que las reglas de Firestore estén publicadas.', 'warn');
+      $('btnSimular').disabled = false;
+      $('btnSimular').textContent = '🚀 Generar 8 pedidos de prueba';
+    });
+  });
+
+  // ── Limpiar ──
+  $('btnLimpiar').addEventListener('click', function() {
+    if (!IDS_GENERADOS.length) { alert('No hay datos de esta sesión para borrar.'); return; }
+    if (!confirm('¿Borrar los ' + IDS_GENERADOS.length + ' pedidos de prueba generados en esta sesión?')) return;
+    $('btnLimpiar').disabled = true;
+    $('btnLimpiar').textContent = 'Borrando…';
+    log('', '');
+    log('Limpiando ' + IDS_GENERADOS.length + ' pedidos de prueba…', 'info');
+    var ref = db.collection('tenants').doc(TENANT).collection('pedidos');
+    var batch = db.batch();
+    IDS_GENERADOS.forEach(function(id) { batch.delete(ref.doc(id)); });
+    batch.commit().then(function() {
+      log('✓ ' + IDS_GENERADOS.length + ' pedidos de prueba eliminados.', 'ok');
+      IDS_GENERADOS = [];
+      $('zonaPedidos').innerHTML = '';
+      $('zonaLimpiar').style.display = 'none';
+      $('kpTotal').textContent = '0';
+      $('kpMonto').textContent = '$0';
+      $('kpEmpresas').textContent = '0';
+      $('kpClientes').textContent = '0';
+      $('btnSimular').disabled = false;
+      $('btnSimular').textContent = '🚀 Generar 8 pedidos de prueba';
+      $('btnLimpiar').disabled = false;
+      $('btnLimpiar').textContent = '🗑 Borrar pedidos de prueba';
+    }).catch(function(e) {
+      log('❌ Error al limpiar: ' + e.message, 'err');
+      $('btnLimpiar').disabled = false;
+      $('btnLimpiar').textContent = '🗑 Borrar pedidos de prueba';
+    });
+  });
+
+})();
+</script>
+</body>
+</html>
