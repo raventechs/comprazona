@@ -1,15 +1,14 @@
 <!DOCTYPE html>
 <!--
   ARCHIVO: admin.html
-  VERSIÓN: v0.1
+  VERSIÓN: v0.2
   FECHA: 01/08/2026
   PROYECTO: RavenMarket — Panel Super Admin | RavenTechs
   CHANGELOG:
-  - v0.1 (01/08/2026): Panel de super administración del marketplace. Solo accesible con
-    rgaraventa@gmail.com. Tres secciones: Pedidos (todos los pedidos de todas las empresas
-    en vivo, filtros por empresa/estado, métricas del día), Empresas (ver, activar/desactivar,
-    cambiar plan y destacada) y Tenant (configuración del motor: nombre, zona, scoring).
-    Pedidos en vivo vía onSnapshot por empresa, consolidados en una sola vista.
+  - v0.2 (01/08/2026): Sección "Vincular usuario a empresa" en tab Empresas. Busca el
+    usuario por email en Firestore, le asigna empresaId y rol empresa. Muestra usuarios
+    vinculados por empresa con opción de desvincular. También muestra usuarios sin empresa.
+  - v0.1 (01/08/2026): Panel super admin inicial. Pedidos en vivo, gestión empresas, config tenant.
 -->
 <html lang="es">
 <head>
@@ -55,7 +54,16 @@
 .tag-dest{font-size:12px;font-weight:800;padding:5px 10px;border-radius:20px;background:#E7F3F8;color:var(--c-secundario)}
 .emp-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .mini-btn{border:1.5px solid var(--c-borde);border-radius:10px;padding:8px 12px;font-weight:800;font-size:12.5px;background:var(--c-tarjeta)}
-.cfg-seccion{background:var(--c-tarjeta);border:1.5px solid var(--c-borde);border-radius:var(--radio);padding:16px;margin-bottom:14px}
+.vinc-box{background:var(--c-tarjeta);border:1.5px solid var(--c-borde);border-radius:var(--radio);padding:16px;margin-bottom:14px}
+.vinc-box h3{font-size:15px;font-weight:800;margin-bottom:12px}
+.vinc-row{display:flex;gap:8px;margin-bottom:8px}
+.vinc-row input,.vinc-row select{flex:1;padding:11px 12px;border:1.5px solid var(--c-borde);border-radius:var(--radio);font-family:inherit;font-size:14px;background:var(--c-tarjeta)}
+.vinc-row input:focus,.vinc-row select:focus{border-color:var(--c-primario);outline:none}
+.usr-item{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--c-borde);font-size:13.5px}
+.usr-item:last-child{border-bottom:none}
+.usr-email{font-weight:700;flex:1}
+.usr-badge{font-size:11px;font-weight:800;padding:3px 8px;border-radius:20px;background:#E7F4EA;color:var(--c-ok);margin:0 8px}
+.usr-badge.sin{background:#F6EAE6;color:#B4553B};border:1.5px solid var(--c-borde);border-radius:var(--radio);padding:16px;margin-bottom:14px}
 .cfg-seccion h3{font-size:15px;font-weight:800;margin-bottom:12px}
 .peso-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
 .peso-row label{font-size:13.5px;font-weight:700;color:var(--c-texto)}
@@ -125,7 +133,32 @@
   <!-- ===== EMPRESAS ===== -->
   <div class="vista" id="tEmpresas">
     <div class="seccion-titulo" style="margin-bottom:14px">Empresas del marketplace</div>
+
+    <!-- Vinculación usuario ↔ empresa -->
+    <div class="vinc-box">
+      <h3>🔗 Vincular usuario a empresa</h3>
+      <p style="font-size:13px;color:var(--c-suave);margin-bottom:12px">
+        Ingresá el email con el que la empresa inició sesión y elegí a qué negocio pertenece.
+      </p>
+      <div class="vinc-row">
+        <input id="vincEmail" type="email" placeholder="email@empresa.com">
+      </div>
+      <div class="vinc-row">
+        <select id="vincEmpresa"><option value="">— Elegir empresa —</option></select>
+        <button class="btn-principal" id="btnVincular" style="padding:11px 16px;font-size:14px">Vincular</button>
+      </div>
+      <div id="vincResultado" style="font-size:13px;margin-top:8px"></div>
+    </div>
+
+    <!-- Lista de empresas con usuarios vinculados -->
+    <div class="seccion-titulo" style="margin-bottom:10px">Gestión de empresas</div>
     <div id="listaEmpresas"></div>
+
+    <!-- Usuarios sin empresa -->
+    <div class="vinc-box" id="boxSinEmpresa" style="display:none">
+      <h3>👤 Usuarios sin empresa asignada</h3>
+      <div id="listaSinEmpresa"></div>
+    </div>
   </div>
 
   <!-- ===== TENANT ===== -->
@@ -337,11 +370,118 @@
   }
 
   /* ---------- Empresas ---------- */
-  function cargarEmpresas() { pintarEmpresas(DATOS.empresas); }
+  function cargarEmpresas() {
+    pintarEmpresas(DATOS.empresas);
+    poblarSelectorVinculacion();
+    cargarUsuarios();
+  }
 
-  function pintarEmpresas(lista) {
+  function poblarSelectorVinculacion() {
+    var html = '<option value="">— Elegir empresa —</option>';
+    DATOS.empresas.forEach(function (e) {
+      html += '<option value="' + e.id + '">' + e.nombre + '</option>';
+    });
+    $('vincEmpresa').innerHTML = html;
+  }
+
+  /* ---- Vinculación ---- */
+  $('btnVincular').addEventListener('click', function () {
+    var email = $('vincEmail').value.trim().toLowerCase();
+    var empId = $('vincEmpresa').value;
+    var res = $('vincResultado');
+    if (!email) { res.textContent = '⚠ Escribí el email del usuario.'; res.style.color = '#B4553B'; return; }
+    if (!empId) { res.textContent = '⚠ Elegí una empresa.'; res.style.color = '#B4553B'; return; }
+
+    res.textContent = 'Buscando usuario…'; res.style.color = 'var(--c-suave)';
+    $('btnVincular').disabled = true;
+
+    var fb = RM._internos.fb();
+    var empNombre = '';
+    DATOS.empresas.forEach(function (e) { if (e.id === empId) empNombre = e.nombre; });
+
+    // Buscar usuario por email en la colección de usuarios del tenant
+    fb.db.collection('tenants').doc(RM._internos.tenantIdActual())
+      .collection('usuarios').where('email', '==', email).limit(1).get()
+      .then(function (snap) {
+        if (snap.empty) {
+          res.textContent = '❌ No encontramos ningún usuario con ese email. Pedile que inicie sesión al menos una vez en la app cliente o en empresa.html.';
+          res.style.color = '#B4553B';
+          $('btnVincular').disabled = false;
+          return;
+        }
+        var doc = snap.docs[0];
+        return doc.ref.update({ empresaId: empId, rol: 'empresa' }).then(function () {
+          res.textContent = '✅ ' + email + ' vinculado a ' + empNombre + ' correctamente.';
+          res.style.color = 'var(--c-ok)';
+          $('vincEmail').value = '';
+          $('vincEmpresa').value = '';
+          $('btnVincular').disabled = false;
+          cargarUsuarios(); // refrescar la lista
+        });
+      })
+      .catch(function (e) {
+        res.textContent = '❌ Error: ' + (e.message || e);
+        res.style.color = '#B4553B';
+        $('btnVincular').disabled = false;
+      });
+  });
+
+  /* ---- Lista de usuarios ---- */
+  function cargarUsuarios() {
+    var fb = RM._internos.fb();
+    fb.db.collection('tenants').doc(RM._internos.tenantIdActual())
+      .collection('usuarios').limit(100).get()
+      .then(function (snap) {
+        var conEmpresa = {};   // empresaId → [{uid, email, nombre}]
+        var sinEmpresa = [];
+        snap.forEach(function (doc) {
+          var u = doc.data(); u.uid = doc.id;
+          if (u.email === RM_CONFIG.SUPER_ADMIN) return; // omitir super admin
+          if (u.empresaId) {
+            if (!conEmpresa[u.empresaId]) conEmpresa[u.empresaId] = [];
+            conEmpresa[u.empresaId].push(u);
+          } else {
+            sinEmpresa.push(u);
+          }
+        });
+        // Pintar usuarios vinculados dentro de cada tarjeta de empresa
+        usuariosVinculados = conEmpresa;
+        pintarEmpresas(DATOS.empresas, conEmpresa);
+        // Pintar usuarios sin empresa
+        if (sinEmpresa.length) {
+          var html = '';
+          sinEmpresa.forEach(function (u) {
+            html += '<div class="usr-item">' +
+              '<span class="usr-email">' + (u.email || u.uid) + '</span>' +
+              '<span class="usr-badge sin">sin empresa</span>' +
+              '</div>';
+          });
+          $('listaSinEmpresa').innerHTML = html;
+          $('boxSinEmpresa').style.display = 'block';
+        } else {
+          $('boxSinEmpresa').style.display = 'none';
+        }
+      })
+      .catch(function () {}); // silencioso si no hay usuarios aún
+  }
+
+  var usuariosVinculados = {};
+
+  function pintarEmpresas(lista, vinculados) {
+    vinculados = vinculados || usuariosVinculados || {};
     var html = '';
     lista.forEach(function (e) {
+      var usrs = vinculados[e.id] || [];
+      var usrsHtml = usrs.length
+        ? usrs.map(function (u) {
+            return '<div class="usr-item">' +
+              '<span class="usr-email">' + (u.email || u.uid) + '</span>' +
+              '<span class="usr-badge">empresa</span>' +
+              '<button class="mini-btn" style="font-size:11px;padding:5px 9px" data-desvincular="' + u.uid + '">✕ Desvincular</button>' +
+              '</div>';
+          }).join('')
+        : '<div style="font-size:12.5px;color:var(--c-suave);padding:6px 0">Sin usuarios vinculados todavía.</div>';
+
       html += '<div class="emp-card-a">' +
         '<div class="nom">' + e.nombre + '</div>' +
         '<div class="dir">' + (e.direccion || '') + '</div>' +
@@ -350,6 +490,8 @@
         '<span class="' + (e.activa ? 'tag-activa">✅ Activa' : 'tag-inactiva">🚫 Inactiva') + '</span>' +
         (e.destacada ? '<span class="tag-dest">⭐ Destacada</span>' : '') +
         '</div>' +
+        '<div style="margin:10px 0 6px;font-size:12px;font-weight:800;color:var(--c-suave)">USUARIOS VINCULADOS</div>' +
+        usrsHtml +
         '<div class="emp-btns">' +
         '<button class="mini-btn" data-toggle-emp="' + e.id + '">' + (e.activa ? 'Desactivar' : 'Activar') + '</button>' +
         '<button class="mini-btn" data-toggle-dest="' + e.id + '">' + (e.destacada ? 'Quitar destacada' : '⭐ Destacar') + '</button>' +
@@ -363,11 +505,24 @@
     var te = e.target.closest('[data-toggle-emp]');
     var td = e.target.closest('[data-toggle-dest]');
     var cp = e.target.closest('[data-cambiar-plan]');
-    var id = (te || td || cp);
+    var dv = e.target.closest('[data-desvincular]');
+    var id = (te || td || cp || dv);
     if (!id) return;
-    var empId = id.getAttribute('data-toggle-emp') || id.getAttribute('data-toggle-dest') || id.getAttribute('data-cambiar-plan');
+    var empId = (te || td || cp) ? (id.getAttribute('data-toggle-emp') || id.getAttribute('data-toggle-dest') || id.getAttribute('data-cambiar-plan')) : null;
     var emp = null;
-    DATOS.empresas.forEach(function (e) { if (e.id === empId) emp = e; });
+    if (empId) DATOS.empresas.forEach(function (e) { if (e.id === empId) emp = e; });
+
+    if (dv) {
+      var uid = dv.getAttribute('data-desvincular');
+      if (!confirm('¿Desvincular este usuario de la empresa?')) return;
+      var fb = RM._internos.fb();
+      fb.db.collection('tenants').doc(RM._internos.tenantIdActual())
+        .collection('usuarios').doc(uid)
+        .update({ empresaId: firebase.firestore.FieldValue.delete(), rol: 'cliente' })
+        .then(function () { cargarUsuarios(); toast(); })
+        .catch(function (e) { alert('Error: ' + e.message); });
+      return;
+    }
     if (!emp) return;
     if (te) {
       emp.activa = !emp.activa;
