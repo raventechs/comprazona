@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <!--
   ARCHIVO: index.html
-  VERSIÓN: v0.8
+  VERSIÓN: v0.9
   FECHA: 01/08/2026
   PROYECTO: CompraZona — App Cliente | RavenTechs
   CHANGELOG:
+  - v0.9 (02/08/2026): Mapa Leaflet con pines de empresas, distancia y acceso directo. PWA instalable (manifest + service worker). Ítem Mapa en nav inferior.
   - v0.8 (01/08/2026): Modal de confirmación antes de enviar el pedido. El cliente ve
     el resumen completo (empresa, productos, total, dirección) y confirma antes de que
     se abra WhatsApp y se registre en Firestore.
@@ -29,9 +30,24 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>CompraZona</title>
+<meta name="theme-color" content="#F27B13">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="CompraZona">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
 <style>
+/* ---- Mapa Leaflet (v0.9) ---- */
+#mapaLeaflet{height:calc(100vh - 180px);border-radius:14px;overflow:hidden;margin-bottom:12px}
+.leaflet-popup-content-wrapper{border-radius:14px;box-shadow:0 4px 16px rgba(0,0,0,.12)}
+.leaflet-popup-content{margin:10px 14px}
+.popup-nom{font-weight:800;font-size:14.5px;margin-bottom:4px}
+.popup-det{font-size:12.5px;color:var(--c-suave);margin-bottom:8px}
+.popup-btn{background:var(--c-primario);color:#fff;font-weight:800;font-size:13px;
+           padding:8px 14px;border-radius:10px;border:none;cursor:pointer;width:100%}
 /* ---- Tarjeta suave de ubicación (v0.5) ---- */
 #cardUbi{
   position:fixed;bottom:76px;left:12px;right:12px;z-index:28;
@@ -278,7 +294,10 @@
   <!-- ========== VISTA EMPRESAS ========== -->
   <div class="vista" id="vEmpresas">
     <button class="volver" data-ir="vInicio">← Volver</button>
-    <div class="seccion-titulo" id="tituloEmpresas"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div class="seccion-titulo" id="tituloEmpresas" style="margin:0"></div>
+      <button class="sesion-chip" style="font-size:12px;padding:6px 12px" id="btnVerMapa">🗺️ Mapa</button>
+    </div>
     <div id="listaEmpresas"></div>
   </div>
 
@@ -314,6 +333,15 @@
     <button class="btn-principal" id="btnEnviar" style="width:100%">Enviar pedido por WhatsApp</button>
     <p id="avisoLogin" style="display:none;font-size:13px;color:var(--c-suave);text-align:center;margin-top:10px">
       Para registrar el pedido y verlo en tu historial, primero ingresá con Google.</p>
+  </div>
+
+  <!-- ========== VISTA MAPA ========== -->
+  <div class="vista" id="vMapa">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div class="seccion-titulo" style="margin:0" id="mapaSubtitulo">Empresas en tu zona</div>
+      <button class="sesion-chip" id="btnMapaLista" style="font-size:12px;padding:6px 12px">← Lista</button>
+    </div>
+    <div id="mapaLeaflet"></div>
   </div>
 
   <!-- ========== VISTA HISTORIAL ========== -->
@@ -372,10 +400,12 @@
 <!-- Nav inferior -->
 <nav class="nav-inferior">
   <button data-ir="vInicio" class="activo" id="navInicio"><span class="ni">🏠</span>Inicio</button>
+  <button id="navMapa" onclick="abrirMapa()"><span class="ni">🗺️</span>Mapa</button>
   <button data-ir="vHistorial" id="navHistorial"><span class="ni">🧾</span>Mis pedidos</button>
 </nav>
 
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
@@ -843,6 +873,98 @@
     if (faltantes.length) alert('Ya no disponible: ' + faltantes.join(', ') + '. Se agregó el resto.');
     if (!Object.keys(carrito).length) { alert('Ninguno de esos productos está disponible hoy.'); return; }
     abrirEmpresa(emp.id);
+  }
+
+
+  document.getElementById('btnVerMapa').addEventListener('click', function() {
+    abrirMapa(catActual ? catActual.id : null);
+  });
+
+  /* -------- MAPA LEAFLET (v0.9) -------- */
+  var mapaInstancia = null;
+
+  function abrirMapa(catId) {
+    var vistas = document.querySelectorAll('.vista');
+    for (var i = 0; i < vistas.length; i++) vistas[i].classList.remove('activa');
+    document.getElementById('vMapa').classList.add('activa');
+    document.getElementById('navInicio').classList.remove('activo');
+    document.getElementById('navHistorial').classList.remove('activo');
+    document.getElementById('navMapa').classList.add('activo');
+    window.scrollTo(0, 0);
+    renderizarMapa(catId);
+  }
+
+  function renderizarMapa(catId) {
+    if (!DATOS) return;
+    var empresas = catId
+      ? DATOS.empresas.filter(function(e){ return e.categorias.indexOf(catId) !== -1; })
+      : DATOS.empresas;
+    var sub = catId ? (DATOS.categorias.filter(function(c){return c.id===catId;})[0]||{}).nombre || '' : '';
+    document.getElementById('mapaSubtitulo').textContent = sub ? sub + ' — empresas en tu zona' : 'Todas las empresas';
+
+    if (!mapaInstancia) {
+      var centroDefault = { lat: -34.773, lng: -58.632 }; // G. Catán
+      var centro = userGeo || centroDefault;
+      mapaInstancia = L.map('mapaLeaflet', { zoomControl: true, attributionControl: false })
+        .setView([centro.lat, centro.lng], 13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18, attribution: '© OpenStreetMap'
+      }).addTo(mapaInstancia);
+    } else {
+      mapaInstancia.eachLayer(function(l){ if (l instanceof L.Marker || l instanceof L.Circle) mapaInstancia.removeLayer(l); });
+    }
+
+    // Pines de empresas
+    var bounds = [];
+    empresas.forEach(function(emp) {
+      if (!emp.geo || !emp.geo.lat) return;
+      var abierta = RM.estaAbierta(emp);
+      var color = abierta ? '#F27B13' : '#999';
+      var icon = L.divIcon({
+        className: '',
+        html: '<div style="background:' + color + ';width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.25)">' +
+              (emp.categorias.indexOf('garrafas')!==-1 ? '🔥' : '💧') + '</div>',
+        iconSize: [36, 36], iconAnchor: [18, 18], popupAnchor: [0, -20]
+      });
+      var marker = L.marker([emp.geo.lat, emp.geo.lng], { icon: icon }).addTo(mapaInstancia);
+      var distTxt = userGeo ? (RM.distanciaKm(userGeo, emp.geo).toFixed(1) + ' km · ') : '';
+      var estado = abierta ? '🟢 Abierto' : '🔴 Cerrado';
+      marker.bindPopup(
+        '<div class="popup-nom">' + RM.sanitizar(emp.nombre) + '</div>' +
+        '<div class="popup-det">' + distTxt + estado + '<br>⏱ ' + emp.tiempoEstimadoMin + ' min · ★ ' + emp.ratingProm.toFixed(1) + '</div>' +
+        '<button class="popup-btn" onclick="document.getElementById(\"vMapa\").classList.remove(\"activa\");abrirEmpresa(\"' + emp.id + '\")">Ver productos →</button>'
+      );
+      bounds.push([emp.geo.lat, emp.geo.lng]);
+    });
+
+    // Pin del usuario
+    if (userGeo) {
+      L.circleMarker([userGeo.lat, userGeo.lng], {
+        radius: 9, fillColor: '#2E9FC4', fillOpacity: 1,
+        color: '#fff', weight: 2.5
+      }).addTo(mapaInstancia).bindPopup('📍 Tu ubicación');
+      bounds.push([userGeo.lat, userGeo.lng]);
+    }
+
+    if (bounds.length > 1) {
+      try { mapaInstancia.fitBounds(bounds, { padding: [30, 30] }); } catch(e) {}
+    }
+    setTimeout(function(){ if(mapaInstancia) mapaInstancia.invalidateSize(); }, 150);
+  }
+
+  document.getElementById('btnMapaLista').addEventListener('click', function() {
+    if (catActual) { irA('vEmpresas'); }
+    else { irA('vInicio'); }
+    document.getElementById('navMapa').classList.remove('activo');
+    document.getElementById('navInicio').classList.add('activo');
+  });
+
+  /* -------- PWA — registro del Service Worker -------- */
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+      navigator.serviceWorker.register('/sw.js')
+        .catch(function(e){ console.log('SW no registrado:', e); });
+    });
   }
 
 })();
