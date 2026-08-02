@@ -625,7 +625,10 @@
   }
 
   function mostrarSubcategorias(catId) {
-    catActual = DATOS.categorias.find(function(c){ return c.id === catId; }) || null;
+    catActual = null;
+    for (var ci = 0; ci < DATOS.categorias.length; ci++) {
+      if (DATOS.categorias[ci].id === catId) { catActual = DATOS.categorias[ci]; break; }
+    }
     if (!catActual) return;
 
     // Armar subcategorías desde los productos del tenant
@@ -634,9 +637,11 @@
       if (emp.categorias.indexOf(catId) === -1) return;
       (DATOS.productos[emp.id] || []).forEach(function(p) {
         if (p.categoria === catId && p.activo) {
-          if (!productos.find(function(x){ return x.nombre === p.nombre; })) {
-            productos.push(p);
+          var yaExiste = false;
+          for (var pi = 0; pi < productos.length; pi++) {
+            if (productos[pi].nombre === p.nombre) { yaExiste = true; break; }
           }
+          if (!yaExiste) { productos.push(p); }
         }
       });
     });
@@ -689,7 +694,7 @@
   });
 
   /* ---------- Ubicación ---------- */
-  $('btnUbicacion').addEventListener('click', function () {
+  if ($('btnUbicacion')) $('btnUbicacion').addEventListener('click', function () {
     if (!navigator.geolocation) { alert('Tu navegador no permite ubicación.'); return; }
     $('btnUbicacion').textContent = '📍 Obteniendo ubicación…';
     navigator.geolocation.getCurrentPosition(function (pos) {
@@ -1010,6 +1015,7 @@
   });
 
   /* ---- Botón volver de empresas → subcategorías ---- */
+  // btnVolverEmpresas se vincula cuando se abre la vista empresa
   var btnVE = document.getElementById('btnVolverEmpresas');
   if (btnVE) btnVE.addEventListener('click', function() {
     if (catActual) {
