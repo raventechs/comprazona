@@ -38,6 +38,7 @@
 <meta name="apple-mobile-web-app-title" content="CompraZona">
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="estilos.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -84,7 +85,7 @@
 <!-- ══ ESTÁNDAR RAVENTECHS ONBOARDING v1.0 ══ -->
 
 <!-- Banner PWA personalizado -->
-<div id="bannerPWA">
+<div id="bannerPWA" style="display:none">
   <div class="ico">📲</div>
   <div class="txt">
     <div class="t1">Instalá CompraZona</div>
@@ -97,14 +98,14 @@
 </div>
 
 <!-- Pantalla de espera redirect Google -->
-<div id="pantallaEspera">
+<div id="pantallaEspera" style="display:none">
   <div class="loader"></div>
   <h2>Un momento…</h2>
   <p>Estamos verificando tu cuenta de Google.<br>Ya casi estás adentro.</p>
 </div>
 
 <!-- Pantalla de permisos post-login (una sola vez) -->
-<div id="pantallaPermisos">
+<div id="pantallaPermisos" style="display:none">
   <div class="perm-titulo">Una sola vez</div>
   <div class="perm-sub">Para que la app funcione bien,<br>necesitamos estos permisos:</div>
   <div class="perm-item" id="piUbicacion">
@@ -156,83 +157,6 @@
   <button class="bv-skip" id="btnLoginCancelar" style="margin-top:14px;font-size:13.5px;color:var(--c-suave);background:none;border:none;cursor:pointer">Cancelar</button>
 </div>
 
-<div class="carrito-splash" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 90" id="carritoSVG">
-  <defs>
-    <style>
-      /* ---- Ruedas: giran siempre ---- */
-      .rueda-izq { transform-box:fill-box; transform-origin:center;
-                   animation: girar 0.6s linear infinite; }
-      .rueda-der { transform-box:fill-box; transform-origin:center;
-                   animation: girar 0.6s linear infinite; }
-      @keyframes girar {
-        from { transform: rotate(0deg); }
-        to   { transform: rotate(360deg); }
-      }
-
-      /* ---- Header: carrito oscila suave izq-der ---- */
-      .carrito-header #carritoSVG {
-        animation: oscilar 1.6s ease-in-out infinite;
-        transform-origin: 50% 90%;
-      }
-      @keyframes oscilar {
-        0%,100% { transform: translateX(0px);   }
-        25%      { transform: translateX(5px);   }
-        75%      { transform: translateX(-5px);  }
-      }
-
-      /* ---- Splash: rueda de izq a der y vuelve ---- */
-      .carrito-splash #carritoSVG {
-        animation: rodar 2.2s ease-in-out infinite;
-      }
-      @keyframes rodar {
-        0%    { transform: translateX(-10px); }
-        45%   { transform: translateX(10px);  }
-        55%   { transform: translateX(10px);  }
-        100%  { transform: translateX(-10px); }
-      }
-    </style>
-  </defs>
-
-  
-  <path d="M 62 8 Q 80 8 80 26" stroke="#F27B13" fill="none"
-        stroke-width="5" stroke-linecap="round"/>
-
-  
-  <rect x="12" y="22" width="58" height="36" rx="5" fill="#F27B13"/>
-
-  
-  <line x1="12" y1="34" x2="70" y2="34" stroke="white" stroke-width="1.8" opacity="0.45"/>
-  <line x1="12" y1="46" x2="70" y2="46" stroke="white" stroke-width="1.8" opacity="0.45"/>
-
-  
-  <line x1="31" y1="22" x2="31" y2="58" stroke="white" stroke-width="1.8" opacity="0.45"/>
-  <line x1="51" y1="22" x2="51" y2="58" stroke="white" stroke-width="1.8" opacity="0.45"/>
-
-  
-  <rect x="9" y="56" width="64" height="6" rx="3" fill="#C9610A"/>
-
-  
-  <g class="rueda-izq">
-    <circle cx="26" cy="72" r="11" fill="#26221D"/>
-    <circle cx="26" cy="72" r="7"  fill="#4A4541"/>
-    <circle cx="26" cy="72" r="2.5" fill="#26221D"/>
-    <line x1="26" y1="61" x2="26" y2="83" stroke="#888" stroke-width="2"/>
-    <line x1="15" y1="72" x2="37" y2="72" stroke="#888" stroke-width="2"/>
-    <line x1="18" y1="64" x2="34" y2="80" stroke="#888" stroke-width="1.5"/>
-    <line x1="34" y1="64" x2="18" y2="80" stroke="#888" stroke-width="1.5"/>
-  </g>
-
-  
-  <g class="rueda-der">
-    <circle cx="62" cy="72" r="11" fill="#26221D"/>
-    <circle cx="62" cy="72" r="7"  fill="#4A4541"/>
-    <circle cx="62" cy="72" r="2.5" fill="#26221D"/>
-    <line x1="62" y1="61" x2="62" y2="83" stroke="#888" stroke-width="2"/>
-    <line x1="51" y1="72" x2="73" y2="72" stroke="#888" stroke-width="2"/>
-    <line x1="54" y1="64" x2="70" y2="80" stroke="#888" stroke-width="1.5"/>
-    <line x1="70" y1="64" x2="54" y2="80" stroke="#888" stroke-width="1.5"/>
-  </g>
-</svg></div>
 <div class="demo-banner" id="demoBanner" style="display:none">Vista de demostración — datos de ejemplo</div>
 
 <header class="app">
