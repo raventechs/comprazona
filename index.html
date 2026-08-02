@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <!--
   ARCHIVO: index.html
-  VERSIÓN: v1.0
+  VERSIÓN: v1.1
   FECHA: 01/08/2026
   PROYECTO: CompraZona — App Cliente | RavenTechs
   CHANGELOG:
+  - v1.1 (02/08/2026): Ícono header fijo (carrito). Nav inferior mapa: scope global. Home rediseñado: botones de categoría grandes → subcategorías de producto → empresas filtradas. Sin cuadro de búsqueda.
   - v1.0 (02/08/2026): Estándar RavenTechs de Onboarding. Banner PWA propio con beforeinstallprompt. Pantalla de espera durante redirect Google. Pantalla de permisos unificada post-login.
   - v0.9 (02/08/2026): Mapa Leaflet con pines de empresas, distancia y acceso directo. PWA instalable (manifest + service worker). Ítem Mapa en nav inferior.
   - v0.8 (01/08/2026): Modal de confirmación antes de enviar el pedido. El cliente ve
@@ -162,7 +163,7 @@
 <header class="app">
   <div class="fila-header">
     <div class="brand">
-      <div class="logo" id="brandLogo">🔥</div>
+      <div class="logo">🛒</div>
       <div>
         <div class="carrito-wrap"><span class="carrito-header" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 90" id="carritoSVG">
   <defs>
@@ -253,18 +254,22 @@
 
   <!-- ========== VISTA INICIO ========== -->
   <div class="vista activa" id="vInicio">
-    <div class="buscador">
-      <input type="text" id="inpBuscar" placeholder="¿Qué necesitás? Ej: una garrafa de 10" autocomplete="off">
-      <button id="btnBuscar" aria-label="Buscar">Buscar</button>
+    <div id="seccionCategorias">
+      <div class="seccion-titulo">¿Qué necesitás hoy?</div>
+      <div class="cat-grid" id="catGrid"></div>
+      <button class="btn-sec" id="btnUbicacion">📍 Activar mi ubicación</button>
     </div>
-    <div class="seccion-titulo">Categorías</div>
-    <div class="cat-grid" id="catGrid"></div>
-    <button class="btn-sec" id="btnUbicacion">📍 Activar mi ubicación</button>
+    <!-- Subcategorías (productos) — aparece al tocar una categoría -->
+    <div id="seccionSubcat" style="display:none">
+      <button class="volver" id="btnVolverCat">← Volver</button>
+      <div class="seccion-titulo" id="subcatTitulo"></div>
+      <div id="subcatGrid" class="cat-grid"></div>
+    </div>
   </div>
 
   <!-- ========== VISTA EMPRESAS ========== -->
   <div class="vista" id="vEmpresas">
-    <button class="volver" data-ir="vInicio">← Volver</button>
+    <button class="volver" id="btnVolverEmpresas">← Volver</button>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
       <div class="seccion-titulo" id="tituloEmpresas" style="margin:0"></div>
       <button class="sesion-chip" style="font-size:12px;padding:6px 12px" id="btnVerMapa">🗺️ Mapa</button>
@@ -371,7 +376,7 @@
 <!-- Nav inferior -->
 <nav class="nav-inferior">
   <button data-ir="vInicio" class="activo" id="navInicio"><span class="ni">🏠</span>Inicio</button>
-  <button id="navMapa" onclick="abrirMapa()"><span class="ni">🗺️</span>Mapa</button>
+  <button id="navMapa" data-mapa="1"><span class="ni">🗺️</span>Mapa</button>
   <button data-ir="vHistorial" id="navHistorial"><span class="ni">🧾</span>Mis pedidos</button>
 </nav>
 
@@ -389,6 +394,7 @@
   /* Detectar inmediatamente si viene de redirect Google */
   detectarRedirectPendiente();
   var catActual = null;
+  var prodFiltroActual = null; // producto seleccionado en subcategorías
   var empActual = null;
   var carrito = {};
   var userGeo = null;
@@ -408,7 +414,20 @@
   }
   document.addEventListener('click', function (e) {
     var b = e.target.closest('[data-ir]');
-    if (b) irA(b.getAttribute('data-ir'));
+    if (b) {
+      irA(b.getAttribute('data-ir'));
+      // Actualizar nav inferior
+      document.querySelectorAll('.nav-inferior button').forEach(function(btn){ btn.classList.remove('activo'); });
+      var navId = b.getAttribute('data-ir') === 'vHistorial' ? 'navHistorial' : 'navInicio';
+      var navEl = document.getElementById(navId);
+      if (navEl) navEl.classList.add('activo');
+    }
+    var m = e.target.closest('[data-mapa]');
+    if (m) {
+      document.querySelectorAll('.nav-inferior button').forEach(function(btn){ btn.classList.remove('activo'); });
+      document.getElementById('navMapa').classList.add('activo');
+      abrirMapa(catActual ? catActual.id : null);
+    }
   });
 
   /* ---------- Arranque ---------- */
@@ -590,6 +609,7 @@
     }
   });
 
+  /* ---------- Pantalla de inicio: categorías → subcategorías → empresas ---------- */
   function pintarCategorias() {
     var html = '';
     DATOS.categorias.forEach(function (c) {
@@ -598,24 +618,76 @@
               '<span class="nom">' + c.nombre + '</span></button>';
     });
     $('catGrid').innerHTML = html;
-    var botones = $('catGrid').querySelectorAll('[data-cat]');
-    for (var i = 0; i < botones.length; i++) {
-      botones[i].addEventListener('click', function () {
-        abrirCategoria(this.getAttribute('data-cat'));
+    $('catGrid').querySelectorAll('[data-cat]').forEach(function(btn) {
+      btn.addEventListener('click', function () {
+        mostrarSubcategorias(this.getAttribute('data-cat'));
       });
-    }
+    });
   }
 
-  /* ---------- Búsqueda ---------- */
-  function buscar() {
-    var q = $('inpBuscar').value;
-    if (!q.trim()) return;
-    var cat = RM.buscarCategoria(q, DATOS.categorias);
-    if (cat) { abrirCategoria(cat.id); }
-    else { alert('No encontramos esa categoría. Probá escribir "garrafa" o "agua".'); }
+  function mostrarSubcategorias(catId) {
+    catActual = DATOS.categorias.find(function(c){ return c.id === catId; }) || null;
+    if (!catActual) return;
+
+    // Armar subcategorías desde los productos del tenant
+    var productos = [];
+    DATOS.empresas.forEach(function(emp) {
+      if (emp.categorias.indexOf(catId) === -1) return;
+      (DATOS.productos[emp.id] || []).forEach(function(p) {
+        if (p.categoria === catId && p.activo) {
+          if (!productos.find(function(x){ return x.nombre === p.nombre; })) {
+            productos.push(p);
+          }
+        }
+      });
+    });
+    // Ordenar por precio promedio
+    productos.sort(function(a,b){ return a.precio - b.precio; });
+
+    $('subcatTitulo').textContent = catActual.icono + ' ' + catActual.nombre + ' — elegí el tipo:';
+    var html = '';
+    if (productos.length) {
+      productos.forEach(function(p) {
+        html += '<button class="cat-btn" data-prod="' + encodeURIComponent(p.nombre) + '">' +
+                '<span class="ico" style="font-size:22px;margin-bottom:6px">' + catActual.icono + '</span>' +
+                '<span class="nom" style="font-size:14px">' + RM.sanitizar(p.nombre) + '</span>' +
+                '<span style="font-size:13px;color:var(--c-primario);font-weight:800;margin-top:2px">Desde ' + RM.formatPesos(p.precio) + '</span>' +
+                '</button>';
+      });
+    } else {
+      // Si no hay productos distintos, ir directo a empresas
+      abrirCategoria(catId); return;
+    }
+    // Botón "Ver todas las empresas"
+    html += '<button class="cat-btn" data-prod-todas="' + catId + '" style="background:var(--c-fondo)">' +
+            '<span class="ico" style="font-size:22px;margin-bottom:6px">🏪</span>' +
+            '<span class="nom" style="font-size:13px">Ver todas las empresas</span></button>';
+
+    $('subcatGrid').innerHTML = html;
+
+    $('subcatGrid').querySelectorAll('[data-prod]').forEach(function(btn) {
+      btn.addEventListener('click', function () {
+        var prodNombre = decodeURIComponent(this.getAttribute('data-prod'));
+        prodFiltroActual = prodNombre;
+        abrirCategoria(catId);
+      });
+    });
+    $('subcatGrid').querySelectorAll('[data-prod-todas]').forEach(function(btn) {
+      btn.addEventListener('click', function () {
+        prodFiltroActual = null;
+        abrirCategoria(this.getAttribute('data-prod-todas'));
+      });
+    });
+
+    $('seccionCategorias').style.display = 'none';
+    $('seccionSubcat').style.display = 'block';
   }
-  $('btnBuscar').addEventListener('click', buscar);
-  $('inpBuscar').addEventListener('keydown', function (e) { if (e.key === 'Enter') buscar(); });
+
+  $('btnVolverCat').addEventListener('click', function() {
+    $('seccionSubcat').style.display = 'none';
+    $('seccionCategorias').style.display = 'block';
+    catActual = null; prodFiltroActual = null;
+  });
 
   /* ---------- Ubicación ---------- */
   $('btnUbicacion').addEventListener('click', function () {
@@ -637,6 +709,14 @@
     if (!catActual) return;
     $('tituloEmpresas').textContent = catActual.icono + ' ' + catActual.nombre + ' — empresas disponibles';
     var ranking = RM.rankear(DATOS.empresas, catId, DATOS.productos, DATOS.tenant.scoring, userGeo);
+    // Filtrar por producto seleccionado en subcategorías
+    if (prodFiltroActual) {
+      ranking = ranking.filter(function(r) {
+        return (DATOS.productos[r.emp.id] || []).some(function(p) {
+          return p.nombre === prodFiltroActual && p.activo;
+        });
+      });
+    }
     var html = '';
     if (!ranking.length) html = '<div class="vacio"><span class="ico">🔍</span>No hay empresas en esta categoría todavía.</div>';
     ranking.forEach(function (r) {
@@ -928,6 +1008,22 @@
 
   document.getElementById('btnVerMapa').addEventListener('click', function() {
     abrirMapa(catActual ? catActual.id : null);
+  });
+
+  /* ---- Botón volver de empresas → subcategorías ---- */
+  var btnVE = document.getElementById('btnVolverEmpresas');
+  if (btnVE) btnVE.addEventListener('click', function() {
+    if (catActual) {
+      irA('vInicio');
+      // Si habían subcategorías, volver a mostrarlas
+      document.getElementById('seccionCategorias').style.display = 'none';
+      document.getElementById('seccionSubcat').style.display = 'block';
+      document.getElementById('navInicio').classList.add('activo');
+      document.getElementById('navHistorial').classList.remove('activo');
+      document.getElementById('navMapa').classList.remove('activo');
+    } else {
+      irA('vInicio');
+    }
   });
 
   /* -------- MAPA LEAFLET (v0.9) -------- */
