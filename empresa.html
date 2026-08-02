@@ -189,6 +189,17 @@
   </div>
 </header>
 
+<!-- Pantalla de espera redirect -->
+<div id="empEspera" style="display:none;position:fixed;inset:0;z-index:95;
+  background:#FAFAFA;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;padding:30px">
+  <div style="width:48px;height:48px;border-radius:50%;border:4px solid #E0E0E0;
+    border-top-color:#F27B13;animation:rt-spin .8s linear infinite;margin-bottom:20px"></div>
+  <h2 style="font-size:20px;font-weight:800;margin-bottom:8px">Un momento…</h2>
+  <p style="font-size:14.5px;color:#888">Verificando tu cuenta.</p>
+</div>
+<style>@keyframes rt-spin{to{transform:rotate(360deg)}}</style>
+
 <!-- Pantalla de acceso -->
 <div class="pantalla-acceso" id="pAcceso" style="display:none">
   <span class="ico">🏪</span>
@@ -299,6 +310,14 @@
 (function () {
   var DATOS = null;
   var usuario = null;
+
+  // Detectar si viene de redirect Google
+  (function() {
+    if (localStorage.getItem('rm_login_pending')) {
+      var ep = document.getElementById('empEspera');
+      if (ep) ep.style.display = 'flex';
+    }
+  })();
   var esAdmin = false;
   var empId = null;
   var empDatos = null;       // doc fresco de la empresa
@@ -336,6 +355,9 @@
     }
     RM.onAuth(function (u) {
       usuario = u;
+      var ep = document.getElementById('empEspera');
+      if (ep) ep.style.display = 'none';
+      localStorage.removeItem('rm_login_pending');
       pintarSesion();
       decidirPantalla();
     });
