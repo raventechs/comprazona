@@ -245,7 +245,7 @@
         <div class="lema" id="brandLema"></div>
       </div>
     </div>
-    <div id="wrapSesion" style="text-align:right;display:none">
+    <div id="wrapSesion" style="text-align:right">
       <button class="sesion-chip entrar" id="chipSesion">Ingresá</button>
       <div class="aviso-login" id="avisoSesion">para guardar tus pedidos</div>
     </div>
@@ -316,10 +316,18 @@
 
   <!-- ========== VISTA MAPA ========== -->
   <div class="vista" id="vMapa">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-      <div class="seccion-titulo" style="margin:0" id="mapaSubtitulo">Empresas en tu zona</div>
-      <button class="sesion-chip" id="btnMapaLista" style="font-size:12px;padding:6px 12px">← Lista</button>
-    </div>
+    <button id="btnMapaLista" style="
+        display:flex;align-items:center;gap:10px;width:100%;
+        background:var(--c-tarjeta);border:1.5px solid var(--c-borde);
+        border-radius:14px;padding:13px 16px;margin-bottom:12px;
+        font-size:16px;font-weight:800;color:var(--c-texto);cursor:pointer;
+        box-shadow:var(--sombra)">
+      <span style="font-size:22px">←</span>
+      <div style="text-align:left;flex:1">
+        <div>Volver al catálogo</div>
+        <div id="mapaSubtitulo" style="font-size:12px;font-weight:600;color:var(--c-suave);margin-top:1px">Empresas en tu zona</div>
+      </div>
+    </button>
     <div id="mapaLeaflet"></div>
   </div>
 
