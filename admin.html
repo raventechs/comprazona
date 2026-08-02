@@ -69,6 +69,28 @@
 .peso-row label{font-size:13.5px;font-weight:700;color:var(--c-texto)}
 .peso-row input{width:70px;padding:8px 10px;border:1.5px solid var(--c-borde);border-radius:10px;font-weight:800;font-size:14px;text-align:center;background:var(--c-tarjeta)}
 .guardado{position:fixed;left:50%;transform:translateX(-50%);bottom:130px;background:#26221D;color:#fff;font-size:13px;font-weight:700;padding:9px 16px;border-radius:20px;z-index:50;display:none}
+
+/* ── Paquetes (v0.3) ── */
+.pack-card{background:var(--c-tarjeta);border:1.5px solid var(--c-borde);border-radius:var(--radio);padding:15px;margin-bottom:12px;box-shadow:var(--sombra)}
+.pack-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px}
+.pack-nombre{font-weight:800;font-size:15.5px}
+.pack-emp{font-size:12.5px;color:var(--c-suave);margin-top:2px}
+.pack-badge{font-size:12px;font-weight:800;padding:4px 11px;border-radius:20px;white-space:nowrap}
+.pb-starter{background:#E3F2FD;color:#1565C0}
+.pb-pro{background:#FFF3E0;color:#E65100}
+.pb-business{background:#F3E5F5;color:#6A1B9A}
+.pb-sin{background:#F5F5F5;color:#9E9E9E}
+.pack-barra-wrap{margin:10px 0 6px}
+.pack-barra-fondo{background:#F0F0F0;border-radius:20px;height:10px;overflow:hidden}
+.pack-barra-fill{height:10px;border-radius:20px;background:var(--c-primario);transition:width .4s}
+.pack-barra-fill.lleno{background:#E53935}
+.pack-barra-fill.casi{background:#FF9800}
+.pack-texto{font-size:12.5px;color:var(--c-suave);display:flex;justify-content:space-between;margin-top:4px}
+.pack-btns{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+.pack-btn{font-size:12px;font-weight:800;padding:7px 12px;border-radius:10px;border:1.5px solid var(--c-borde);background:var(--c-tarjeta);cursor:pointer}
+.pack-btn.activo{border-color:var(--c-primario);color:var(--c-primario);background:#FFF2E3}
+.pack-sep{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--c-suave);margin:16px 0 10px}
+
 .badge-live{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--c-ok);margin-right:5px;animation:pulse 1.5s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 </style>
@@ -78,7 +100,22 @@
 <header class="app">
   <div class="fila-header">
     <div class="brand">
-      <div class="logo">📍</div>
+      <div class="logo" style="background:#1B5E20;padding:3px"><svg viewBox="0 0 42 42" xmlns="http://www.w3.org/2000/svg">
+  
+  <rect width="42" height="42" rx="10" fill="#1B5E20"/>
+  
+  <rect x="2" y="2" width="16" height="16" rx="2" fill="#2E7D32"/>
+  <rect x="24" y="2" width="16" height="16" rx="2" fill="#2E7D32"/>
+  <rect x="2" y="24" width="16" height="16" rx="2" fill="#2E7D32"/>
+  <rect x="24" y="24" width="16" height="16" rx="2" fill="#2E7D32"/>
+  
+  <rect x="18" y="0" width="6" height="42" fill="#A5D6A7" opacity="0.6"/>
+  <rect x="0" y="18" width="42" height="6" fill="#A5D6A7" opacity="0.6"/>
+  
+  <circle cx="21" cy="16" r="8" fill="#E53935"/>
+  <circle cx="21" cy="16" r="4" fill="white"/>
+  <path d="M21 23 Q17 29 21 33 Q25 29 21 23Z" fill="#E53935"/>
+</svg></div>
       <div>
         <h1 id="brandNombre">CompraZona Admin</h1>
         <div class="lema" id="brandLema">Super Administración</div>
@@ -172,6 +209,16 @@
     </div>
   </div>
 
+  <!-- ===== PAQUETES ===== -->
+  <div class="vista" id="tPaquetes">
+    <div class="seccion-titulo" style="margin-bottom:6px">Paquetes por empresa</div>
+    <p style="font-size:13px;color:var(--c-suave);margin-bottom:14px">
+      Asignás el paquete contratado a cada empresa. El sistema cuenta los pedidos entregados del mes en curso.
+    </p>
+    <div class="pack-sep">Empresas activas</div>
+    <div id="listaPaquetes"><div class="vacio">Cargando…</div></div>
+  </div>
+
   <!-- ===== TENANT ===== -->
   <div class="vista" id="tTenant">
     <div class="seccion-titulo" style="margin-bottom:14px">Configuración del tenant</div>
@@ -201,6 +248,7 @@
   <button data-tab="tPedidos" class="activo"><span class="ni">📋</span>Pedidos <span id="badgePend"></span></button>
   <button data-tab="tEmpresas"><span class="ni">🏪</span>Empresas</button>
   <button data-tab="tTenant"><span class="ni">⚙️</span>Tenant</button>
+  <button data-tab="tPaquetes"><span class="ni">📦</span>Paquetes</button>
 </nav>
 
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
@@ -305,6 +353,7 @@
     for (var j = 0; j < navs.length; j++) navs[j].classList.remove('activo');
     t.classList.add('activo');
     window.scrollTo(0, 0);
+    if (t.getAttribute('data-tab') === 'tPaquetes') cargarPaquetes();
   });
 
   /* ---------- Escucha EN VIVO de pedidos de TODAS las empresas ---------- */
@@ -633,6 +682,112 @@
         toast();
       })
       .catch(function (e) { alert('Error guardando: ' + e.message); });
+  });
+
+
+  /* ══════════════════════════════════
+     TAB PAQUETES — asignación y uso
+     ══════════════════════════════════ */
+
+  var PAQUETES_DEF = [
+    { id: 'starter',  label: 'Starter',  limite: 500,  clase: 'pb-starter' },
+    { id: 'pro',      label: 'Pro',       limite: 1000, clase: 'pb-pro' },
+    { id: 'business', label: 'Business',  limite: 5000, clase: 'pb-business' },
+  ];
+
+  function cargarPaquetes() {
+    if (!DATOS) { setTimeout(cargarPaquetes, 400); return; }
+    var $lista = document.getElementById('listaPaquetes');
+    if (!$lista) return;
+    $lista.innerHTML = '<div class="vacio">Calculando uso del mes…</div>';
+
+    // Inicio del mes actual
+    var ahora = new Date();
+    var inicioMes = new Date(ahora.getFullYear(), ahora.getMonth(), 1).getTime();
+
+    var fb = RM._internos.fb();
+    if (!fb.db) { $lista.innerHTML = '<div class="vacio">Firebase no inicializado.</div>'; return; }
+
+    // Leer TODOS los pedidos del tenant (filtrar en cliente)
+    fb.db.collection('tenants').doc(RM._internos.tenantIdActual())
+      .collection('pedidos').limit(2000).get()
+      .then(function(snap) {
+        // Contar pedidos entregados este mes por empresa
+        var conteos = {};
+        snap.forEach(function(doc) {
+          var p = doc.data();
+          if (p.estado === 'entregado' && p.ts >= inicioMes) {
+            conteos[p.empresaId] = (conteos[p.empresaId] || 0) + 1;
+          }
+        });
+        pintarPaquetes(conteos);
+      })
+      .catch(function(e) {
+        $lista.innerHTML = '<div class="vacio">Error: ' + e.message + '</div>';
+      });
+  }
+
+  function pintarPaquetes(conteos) {
+    var html = '';
+    DATOS.empresas.forEach(function(emp) {
+      var uso = conteos[emp.id] || 0;
+      var pack = emp.paquete || null;
+      var def = null;
+      for (var i = 0; i < PAQUETES_DEF.length; i++) {
+        if (PAQUETES_DEF[i].id === pack) { def = PAQUETES_DEF[i]; break; }
+      }
+      var limite = def ? def.limite : 0;
+      var pct = limite ? Math.min(100, Math.round(uso / limite * 100)) : 0;
+      var fillClass = pct >= 100 ? 'lleno' : pct >= 80 ? 'casi' : '';
+      var badgeCls = def ? def.clase : 'pb-sin';
+      var badgeTxt = def ? def.label : 'Sin paquete';
+
+      var barraHtml = def ? (
+        '<div class="pack-barra-wrap">' +
+        '<div class="pack-barra-fondo"><div class="pack-barra-fill ' + fillClass + '" style="width:' + pct + '%"></div></div>' +
+        '<div class="pack-texto"><span>' + uso + ' / ' + limite + ' pedidos este mes</span><span>' + pct + '%</span></div>' +
+        '</div>'
+      ) : '<p style="font-size:12.5px;color:var(--c-suave);margin:6px 0">Sin paquete asignado — no se registra uso.</p>';
+
+      var botonesHTML = PAQUETES_DEF.map(function(p) {
+        var esActivo = pack === p.id;
+        return '<button class="pack-btn' + (esActivo ? ' activo' : '') + '" ' +
+          'data-asignar-pack="' + emp.id + '" data-pack-id="' + p.id + '">' +
+          p.label + ' (' + p.limite.toLocaleString('es-AR') + ')' +
+          (esActivo ? ' ✓' : '') + '</button>';
+      }).join('') +
+      (pack ? '<button class="pack-btn" data-asignar-pack="' + emp.id + '" data-pack-id="">Quitar paquete</button>' : '');
+
+      html += '<div class="pack-card">' +
+        '<div class="pack-top">' +
+        '<div><div class="pack-nombre">' + RM.sanitizar(emp.nombre) + '</div>' +
+        '<div class="pack-emp">📍 ' + RM.sanitizar(emp.direccion || '') + '</div></div>' +
+        '<span class="pack-badge ' + badgeCls + '">' + badgeTxt + '</span>' +
+        '</div>' +
+        barraHtml +
+        '<div class="pack-btns">' + botonesHTML + '</div>' +
+        '</div>';
+    });
+    document.getElementById('listaPaquetes').innerHTML = html || '<div class="vacio">No hay empresas.</div>';
+  }
+
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest('[data-asignar-pack]');
+    if (!btn) return;
+    var empId = btn.getAttribute('data-asignar-pack');
+    var packId = btn.getAttribute('data-pack-id') || null;
+    var emp = null;
+    DATOS.empresas.forEach(function(x) { if (x.id === empId) emp = x; });
+    if (!emp) return;
+    emp.paquete = packId || null;
+    RM.guardarEmpresa(empId, { paquete: packId || null }, function(err) {
+      if (err) { alert('Error: ' + err); return; }
+      // Refrescar la vista de paquetes
+      var cont = document.getElementById('listaPaquetes');
+      if (cont) cont.innerHTML = '<div class="vacio">Actualizando…</div>';
+      cargarPaquetes();
+      toast();
+    });
   });
 
 })();
