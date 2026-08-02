@@ -245,7 +245,10 @@
         <div class="lema" id="brandLema"></div>
       </div>
     </div>
-    <button class="sesion-chip entrar" id="chipSesion" style="display:none">Ingresar</button>
+    <div id="wrapSesion" style="text-align:right;display:none">
+      <button class="sesion-chip entrar" id="chipSesion">Ingresá</button>
+      <div class="aviso-login" id="avisoSesion">para guardar tus pedidos</div>
+    </div>
   </div>
   <div class="zona" id="brandZona"></div>
 </header>
@@ -588,19 +591,25 @@
   });
 
   function pintarSesion() {
+    var wrap = document.getElementById('wrapSesion');
     var chip = $('chipSesion');
-    if (RM_CONFIG.DEMO) { chip.style.display = 'none'; return; }
-    chip.style.display = 'block';
+    var aviso = document.getElementById('avisoSesion');
+    if (!wrap || !chip) return;
+    if (RM_CONFIG.DEMO) { wrap.style.display = 'none'; return; }
+    wrap.style.display = 'block';
     if (usuario) {
-      chip.textContent = '👤 ' + (usuario.displayName || 'Mi cuenta').split(' ')[0];
+      var nombre = (usuario.displayName || usuario.email || 'Mi cuenta').split(' ')[0];
+      chip.textContent = '👤 ' + nombre;
       chip.classList.remove('entrar');
+      if (aviso) aviso.style.display = 'none';
     } else {
-      chip.textContent = 'Ingresar';
+      chip.textContent = 'Ingresá';
       chip.classList.add('entrar');
+      if (aviso) aviso.style.display = 'block';
     }
   }
 
-  $('chipSesion').addEventListener('click', function () {
+  document.getElementById('chipSesion').addEventListener('click', function () {
     if (usuario) {
       if (confirm('¿Cerrar sesión de ' + (usuario.email || 'tu cuenta') + '?')) RM.logout();
     } else {
