@@ -212,9 +212,19 @@
   <!-- ===== PAQUETES ===== -->
   <div class="vista" id="tPaquetes">
     <div class="seccion-titulo" style="margin-bottom:6px">Paquetes por empresa</div>
-    <p style="font-size:13px;color:var(--c-suave);margin-bottom:14px">
-      Asignás el paquete contratado a cada empresa. El sistema cuenta los pedidos entregados del mes en curso.
+    <p style="font-size:13px;color:var(--c-suave);margin-bottom:10px">
+      El sistema cuenta los pedidos <b>entregados</b> del mes en curso por empresa.
     </p>
+    <div style="background:var(--c-tarjeta);border:1.5px solid var(--c-borde);border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:12.5px">
+      <div style="font-weight:800;margin-bottom:6px">Tiers disponibles:</div>
+      <div style="color:var(--c-suave);line-height:2">
+        🆓 <b>Gratis</b> — hasta 50 pedidos/mes (prueba)<br>
+        📦 <b>Mini</b> — hasta 200 pedidos/mes<br>
+        📦 <b>Starter</b> — hasta 500 pedidos/mes<br>
+        📦 <b>Pro</b> — hasta 1.000 pedidos/mes<br>
+        <span style="color:var(--c-primario);font-weight:700">Precios ARS a definir — campo precio en PAQUETES_DEF</span>
+      </div>
+    </div>
     <div class="pack-sep">Empresas activas</div>
     <div id="listaPaquetes"><div class="vacio">Cargando…</div></div>
   </div>
@@ -690,10 +700,12 @@
      ══════════════════════════════════ */
 
   var PAQUETES_DEF = [
-    { id: 'starter',  label: 'Starter',  limite: 500,  clase: 'pb-starter' },
-    { id: 'pro',      label: 'Pro',       limite: 1000, clase: 'pb-pro' },
-    { id: 'business', label: 'Business',  limite: 5000, clase: 'pb-business' },
+    { id: 'free',     label: 'Gratis',   limite: 50,   clase: 'pb-sin',      precio: 0,    desc: 'Prueba — hasta 50 pedidos' },
+    { id: 'mini',     label: 'Mini',     limite: 200,  clase: 'pb-starter',  precio: null, desc: 'Hasta 200 pedidos/mes' },
+    { id: 'starter',  label: 'Starter',  limite: 500,  clase: 'pb-pro',      precio: null, desc: 'Hasta 500 pedidos/mes' },
+    { id: 'pro',      label: 'Pro',      limite: 1000, clase: 'pb-business', precio: null, desc: 'Hasta 1000 pedidos/mes' },
   ];
+  // Nota: precios en ARS a definir por Ruben — campo "precio: null" = pendiente
 
   function cargarPaquetes() {
     if (!DATOS) { setTimeout(cargarPaquetes, 400); return; }
@@ -733,8 +745,10 @@
       var uso = conteos[emp.id] || 0;
       var pack = emp.paquete || null;
       var def = null;
+      // Si no tiene paquete asignado, mostrar como Free por defecto
+      var packEfectivo = pack || 'free';
       for (var i = 0; i < PAQUETES_DEF.length; i++) {
-        if (PAQUETES_DEF[i].id === pack) { def = PAQUETES_DEF[i]; break; }
+        if (PAQUETES_DEF[i].id === packEfectivo) { def = PAQUETES_DEF[i]; break; }
       }
       var limite = def ? def.limite : 0;
       var pct = limite ? Math.min(100, Math.round(uso / limite * 100)) : 0;
@@ -750,13 +764,14 @@
       ) : '<p style="font-size:12.5px;color:var(--c-suave);margin:6px 0">Sin paquete asignado — no se registra uso.</p>';
 
       var botonesHTML = PAQUETES_DEF.map(function(p) {
-        var esActivo = pack === p.id;
+        var esActivo = packEfectivo === p.id;
+        var precioTxt = p.precio === 0 ? ' · Gratis' : p.precio ? ' · $' + p.precio.toLocaleString('es-AR') + '/mes' : '';
         return '<button class="pack-btn' + (esActivo ? ' activo' : '') + '" ' +
-          'data-asignar-pack="' + emp.id + '" data-pack-id="' + p.id + '">' +
-          p.label + ' (' + p.limite.toLocaleString('es-AR') + ')' +
+          'data-asignar-pack="' + emp.id + '" data-pack-id="' + p.id + '" ' +
+          'title="' + p.desc + '">' +
+          p.label + ' (' + p.limite + ')' + precioTxt +
           (esActivo ? ' ✓' : '') + '</button>';
-      }).join('') +
-      (pack ? '<button class="pack-btn" data-asignar-pack="' + emp.id + '" data-pack-id="">Quitar paquete</button>' : '');
+      }).join('');
 
       html += '<div class="pack-card">' +
         '<div class="pack-top">' +
