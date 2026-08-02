@@ -155,3 +155,83 @@ main{max-width:560px;margin:0 auto;padding:16px}
 .carrito-splash .rueda-izq{transform-box:fill-box;transform-origin:center;animation:girar-r .55s linear infinite}
 .carrito-splash .rueda-der{transform-box:fill-box;transform-origin:center;animation:girar-r .55s linear infinite}
 @keyframes girar-r{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+
+/* ══════════════════════════════════════════════
+   ESTÁNDAR RAVENTECHS DE ONBOARDING v1.0
+   02/08/2026 — aplicar en todas las apps
+   ══════════════════════════════════════════════ */
+
+/* ── Banner PWA personalizado ── */
+#bannerPWA{
+  position:fixed;bottom:76px;left:12px;right:12px;z-index:35;
+  background:var(--c-texto);color:#fff;
+  border-radius:16px;padding:14px 16px;
+  display:none;align-items:center;gap:12px;
+  box-shadow:0 6px 24px rgba(0,0,0,.25);
+  animation:subirCard .3s ease;
+}
+#bannerPWA .ico{font-size:28px;flex-shrink:0}
+#bannerPWA .txt .t1{font-weight:800;font-size:14.5px}
+#bannerPWA .txt .t2{font-size:12px;opacity:.75;margin-top:1px}
+#bannerPWA .acciones{display:flex;flex-direction:column;gap:5px;flex-shrink:0}
+.pwa-si{background:var(--c-primario);color:#fff;font-weight:800;font-size:13px;
+        padding:9px 14px;border-radius:11px;border:none;cursor:pointer;white-space:nowrap}
+.pwa-no{font-size:11.5px;font-weight:700;color:rgba(255,255,255,.6);
+        background:none;border:none;cursor:pointer;padding:3px;text-align:center}
+
+/* ── Pantalla de espera redirect Google ── */
+#pantallaEspera{
+  position:fixed;inset:0;z-index:95;
+  background:var(--c-fondo);
+  display:none;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;padding:30px;
+}
+#pantallaEspera .loader{
+  width:48px;height:48px;border-radius:50%;
+  border:4px solid var(--c-borde);
+  border-top-color:var(--c-primario);
+  animation:girar-loader 0.8s linear infinite;
+  margin-bottom:20px;
+}
+@keyframes girar-loader{to{transform:rotate(360deg)}}
+#pantallaEspera h2{font-size:20px;font-weight:800;margin-bottom:8px}
+#pantallaEspera p{font-size:14.5px;color:var(--c-suave)}
+
+/* ── Pantalla de permisos post-login ── */
+#pantallaPermisos{
+  position:fixed;inset:0;z-index:88;
+  background:var(--c-fondo);
+  display:none;flex-direction:column;align-items:center;
+  padding:0 22px calc(30px + env(safe-area-inset-bottom));
+  overflow-y:auto;
+}
+.perm-titulo{font-size:22px;font-weight:800;text-align:center;margin:36px 0 6px}
+.perm-sub{font-size:14.5px;color:var(--c-suave);text-align:center;margin-bottom:24px;line-height:1.5}
+.perm-item{
+  width:100%;max-width:400px;
+  background:var(--c-tarjeta);border:2px solid var(--c-borde);
+  border-radius:16px;padding:15px 18px;margin-bottom:10px;
+  display:flex;align-items:center;gap:16px;
+  transition:border-color .3s,background .3s;
+}
+.perm-item.activo{border-color:var(--c-ok);background:#F0FFF3}
+.perm-item .pi-ico{font-size:30px;width:42px;text-align:center;flex-shrink:0;transition:all .3s}
+.perm-item .pi-txt .t1{font-weight:800;font-size:15px}
+.perm-item .pi-txt .t2{font-size:12.5px;color:var(--c-suave);margin-top:2px;line-height:1.4}
+.perm-item .pi-check{width:26px;height:26px;border-radius:50%;border:2px solid var(--c-borde);
+  flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  font-size:14px;transition:all .3s;margin-left:auto}
+.perm-item.activo .pi-check{background:var(--c-ok);border-color:var(--c-ok);color:#fff}
+.perm-btn-grande{
+  width:100%;max-width:400px;margin-top:16px;
+  background:var(--c-primario);color:#fff;
+  font-size:17px;font-weight:800;padding:17px;
+  border-radius:16px;border:none;cursor:pointer;
+  box-shadow:0 4px 16px rgba(242,123,19,.35);
+  transition:background .2s;
+}
+.perm-btn-grande:disabled{background:var(--c-suave);box-shadow:none}
+.perm-omitir{
+  margin-top:14px;font-size:13px;color:var(--c-suave);
+  background:none;border:none;cursor:pointer;padding:10px;
+}
