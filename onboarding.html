@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<!--
+  ARCHIVO: onboarding.html
+  VERSIÓN: v0.1
+  FECHA: 02/08/2026
+  PROYECTO: CompraZona — Guía de alta de empresa | RavenTechs
+  USO: Para uso interno de Ruben al vender la plataforma a una empresa.
+-->
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alta de empresa — CompraZona</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="estilos.css">
+<style>
+.paso-n{background:var(--c-primario);color:#fff;width:32px;height:32px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;flex-shrink:0}
+.paso-box{display:flex;gap:14px;margin-bottom:20px;align-items:flex-start}
+.paso-box .contenido{flex:1}
+.paso-box h3{font-size:16px;font-weight:800;margin-bottom:6px}
+.paso-box p{font-size:14px;color:var(--c-suave);line-height:1.55;margin-bottom:8px}
+.campo-recolectar{background:var(--c-tarjeta);border:1.5px solid var(--c-borde);border-radius:12px;
+  padding:12px 14px;margin-bottom:8px}
+.campo-recolectar .nom{font-size:13px;font-weight:800;margin-bottom:2px}
+.campo-recolectar .desc{font-size:12.5px;color:var(--c-suave)}
+.campo-recolectar input{width:100%;border:none;background:transparent;font-size:14px;
+  padding:6px 0;outline:none;font-family:inherit;color:var(--c-texto);border-top:1px solid var(--c-borde);margin-top:6px}
+.tag-imp{font-size:11px;font-weight:800;color:var(--c-primario);background:#FFF2E3;
+  padding:2px 8px;border-radius:20px;margin-left:6px}
+.url-chip{background:#26221D;color:#C9F5D2;font-family:ui-monospace,monospace;font-size:13px;
+  padding:10px 14px;border-radius:10px;display:block;margin:6px 0;word-break:break-all}
+.seccion{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--c-suave);margin:24px 0 12px}
+.print-btn{background:var(--c-primario);color:#fff;font-weight:800;font-size:14px;
+  padding:12px;border-radius:14px;width:100%;margin-top:8px;border:none;cursor:pointer}
+@media print{.print-btn,.app{display:none}body{padding:0}}
+</style>
+</head>
+<body>
+<header class="app">
+  <div class="brand">
+    <div class="logo">📋</div>
+    <div><h1>Alta de empresa</h1><div class="lema">CompraZona — Guía de onboarding</div></div>
+  </div>
+</header>
+
+<main style="max-width:560px;margin:0 auto;padding:16px 16px 40px">
+
+  <div style="background:#FFF2E3;border-radius:14px;padding:14px 16px;margin-bottom:20px;font-size:14px">
+    <strong>Para uso interno de Ruben.</strong> Seguí este checklist cuando das de alta a una garrafera u otra empresa en CompraZona. Podés imprimirlo o usarlo desde el teléfono.
+  </div>
+
+  <div class="seccion">Paso 1 — Recolectar datos</div>
+  <p style="font-size:14px;color:var(--c-suave);margin-bottom:14px">Pedile estos datos a la empresa antes de ir a la consola:</p>
+
+  <div class="campo-recolectar">
+    <div class="nom">Nombre del negocio <span class="tag-imp">obligatorio</span></div>
+    <div class="desc">Cómo aparece en el marketplace. Ej: "Distribuidora San Jorge"</div>
+    <input type="text" placeholder="Anotar acá…">
+  </div>
+  <div class="campo-recolectar">
+    <div class="nom">WhatsApp <span class="tag-imp">obligatorio</span></div>
+    <div class="desc">Con código de país y área, sin espacios. Ej: 5491144556677</div>
+    <input type="tel" placeholder="549…">
+  </div>
+  <div class="campo-recolectar">
+    <div class="nom">Dirección completa <span class="tag-imp">obligatorio</span></div>
+    <div class="desc">Calle, número, localidad. Ej: Av. Simón Pérez 4500, G. Catán</div>
+    <input type="text" placeholder="Anotar acá…">
+  </div>
+  <div class="campo-recolectar">
+    <div class="nom">Email Google que va a usar para ingresar <span class="tag-imp">obligatorio</span></div>
+    <div class="desc">La cuenta que usa en el teléfono para YouTube o Gmail</div>
+    <input type="email" placeholder="ejemplo@gmail.com">
+  </div>
+  <div class="campo-recolectar">
+    <div class="nom">Horario de atención</div>
+    <div class="desc">Días y horario. Ej: Lunes a sábado de 8 a 19</div>
+    <input type="text" placeholder="Lunes a sábado de 8 a 19…">
+  </div>
+  <div class="campo-recolectar">
+    <div class="nom">Tiempo estimado de entrega (minutos)</div>
+    <div class="desc">Cuánto tarda en promedio desde que confirma hasta que entrega</div>
+    <input type="number" placeholder="45">
+  </div>
+  <div class="campo-recolectar">
+    <div class="nom">Categorías que vende</div>
+    <div class="desc">Garrafas / Agua / Ambas</div>
+    <input type="text" placeholder="Garrafas, Agua…">
+  </div>
+  <div class="campo-recolectar">
+    <div class="nom">Productos y precios actuales</div>
+    <div class="desc">Ej: Garrafa 10kg (canje) $35.000 · Garrafa 15kg (canje) $52.000 · Bidón 20L $7.000</div>
+    <input type="text" placeholder="Listar productos y precios…">
+  </div>
+
+  <div class="seccion">Paso 2 — Cargar en Firestore</div>
+  <div class="paso-box">
+    <div class="paso-n">1</div>
+    <div class="contenido">
+      <h3>Abrir el panel admin</h3>
+      <p>Ingresar con tu cuenta en:</p>
+      <span class="url-chip">comprazona.raventechsapp.com/admin.html</span>
+    </div>
+  </div>
+  <div class="paso-box">
+    <div class="paso-n">2</div>
+    <div class="contenido">
+      <h3>Ir a la consola Firebase</h3>
+      <p>Para agregar la empresa nueva directamente en Firestore. Abrir:</p>
+      <span class="url-chip">console.firebase.google.com → ravenmarket-c2739 → Firestore → tenants → garrafas-agua → empresas → Agregar documento</span>
+      <p>Crear el documento con el ID del slug de la empresa (ej: <code>sanjorge2</code>) y completar los campos: nombre, whatsapp, direccion, categorias (array), tiempoEstimadoMin, ratingProm (5.0), ratingCant (0), destacada (false), activa (true), horario.</p>
+    </div>
+  </div>
+  <div class="paso-box">
+    <div class="paso-n">3</div>
+    <div class="contenido">
+      <h3>Cargar los productos</h3>
+      <p>Dentro del documento de la empresa, crear la subcolección <code>productos</code> con un documento por producto. Campos: nombre, precio (número), categoria (garrafas / agua), activo (true).</p>
+    </div>
+  </div>
+
+  <div class="seccion">Paso 3 — Vincular el usuario</div>
+  <div class="paso-box">
+    <div class="paso-n">4</div>
+    <div class="contenido">
+      <h3>Pedirle que inicie sesión primero</h3>
+      <p>La empresa tiene que abrir la app desde su teléfono e ingresar con Google <strong>al menos una vez</strong> antes de poder vincularla. Mandales este link:</p>
+      <span class="url-chip">comprazona.raventechsapp.com/empresa.html</span>
+      <p>Que toquen "Ingresar con Google" y elijan su cuenta. Van a ver el mensaje "tu cuenta no está vinculada" — eso es normal, es el paso siguiente.</p>
+    </div>
+  </div>
+  <div class="paso-box">
+    <div class="paso-n">5</div>
+    <div class="contenido">
+      <h3>Vincular desde el panel admin</h3>
+      <p>Volver a <code>admin.html</code> → tab Empresas → sección "Vincular usuario a empresa" → poner el email de la empresa → elegir la empresa → tocar Vincular.</p>
+      <p>Si aparece "No encontramos ningún usuario con ese email", es que todavía no iniciaron sesión. Pedirles que repitan el paso 4.</p>
+    </div>
+  </div>
+
+  <div class="seccion">Paso 4 — Verificar y entregar</div>
+  <div class="paso-box">
+    <div class="paso-n">6</div>
+    <div class="contenido">
+      <h3>Verificar que todo funciona</h3>
+      <p>Desde el teléfono de la empresa, abrir empresa.html y confirmar que ven su negocio, sus productos y sus pedidos.</p>
+    </div>
+  </div>
+  <div class="paso-box">
+    <div class="paso-n">7</div>
+    <div class="contenido">
+      <h3>Mostrarle la app cliente</h3>
+      <p>Hacer un pedido de prueba desde la app cliente a su empresa. Deben verlo aparecer en el panel en tiempo real. Ese es el momento de venta.</p>
+      <span class="url-chip">comprazona.raventechsapp.com</span>
+    </div>
+  </div>
+  <div class="paso-box">
+    <div class="paso-n">8</div>
+    <div class="contenido">
+      <h3>Configurar el plan</h3>
+      <p>Desde admin.html → Empresas → "Cambiar plan" → asignar plan básico o full. Agregar al Panel SaaS RavenTechs para el seguimiento de cobranza mensual.</p>
+    </div>
+  </div>
+
+  <div class="seccion">Datos de la empresa cargada</div>
+  <p style="font-size:13.5px;color:var(--c-suave);margin-bottom:12px">Completá acá como constancia antes de imprimir:</p>
+  <div class="campo-recolectar">
+    <div class="nom">Fecha de alta</div>
+    <input type="date">
+  </div>
+  <div class="campo-recolectar">
+    <div class="nom">ID Firestore asignado</div>
+    <input type="text" placeholder="ej: eltano2">
+  </div>
+  <div class="campo-recolectar">
+    <div class="nom">Plan contratado</div>
+    <input type="text" placeholder="básico / full">
+  </div>
+  <div class="campo-recolectar">
+    <div class="nom">Monto mensual acordado</div>
+    <input type="text" placeholder="ARS…">
+  </div>
+  <div class="campo-recolectar">
+    <div class="nom">Fecha primer vencimiento</div>
+    <input type="date">
+  </div>
+
+  <button class="print-btn" onclick="window.print()">🖨️ Imprimir / Guardar como PDF</button>
+
+</main>
+</body>
+</html>
