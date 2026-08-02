@@ -163,7 +163,7 @@
 <header class="app">
   <div class="fila-header">
     <div class="brand">
-      <div class="logo">🛒</div>
+      <div class="logo">📍</div>
       <div>
         <div class="carrito-wrap"><span class="carrito-header" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 90" id="carritoSVG">
   <defs>
@@ -438,8 +438,7 @@
     $('brandNombre').textContent = datos.tenant.nombre;
     $('brandLema').textContent = datos.tenant.lema || '';
     $('brandZona').textContent = '📍 ' + (datos.tenant.zona || '');
-    var primeraCat = datos.categorias[0];
-    if (primeraCat) $('brandLogo').textContent = primeraCat.icono;
+    // Logo: 📍 fijo (no se cambia por la categoría activa)
     pintarCategorias();
     // ubicación manejada por pantalla de permisos post-login
   });
