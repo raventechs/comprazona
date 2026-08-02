@@ -40,7 +40,7 @@ var RM_DEMO = {
     moneda: 'ARS',
     modulosActivos: ['garrafas', 'agua'],
     scoring: { precio: 35, distancia: 25, rating: 25, rapidez: 15, boostDestacada: 6 },
-    zona: 'González Catán y alrededores',
+    zona: 'La Matanza y alrededores',
     activo: true
   },
   categorias: [
