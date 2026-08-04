@@ -484,10 +484,9 @@
   /* ── 1. Detectar retorno de redirect Google ── */
   function detectarRedirectPendiente() {
     if (!localStorage.getItem('rm_login_pending')) return;
-    // Viene de Google — mostrar pantalla de espera
-    $('pantallaEspera').style.display = 'flex';
-    document.body.style.overflow = 'hidden';
-    // onAuth va a resolver esto cuando Firebase procese el resultado
+    // Usa getElementById directo — se llama antes de que $ esté definida
+    var ep = document.getElementById('pantallaEspera');
+    if (ep) { ep.style.display = 'flex'; document.body.style.overflow = 'hidden'; }
   }
 
   function ocultarEspera() {
