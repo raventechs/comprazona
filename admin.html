@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <!--
   ARCHIVO: admin.html
-  VERSIÓN: v0.4
-  FECHA: 01/08/2026
+  VERSIÓN: v0.5
+  FECHA: 26/10/2026
   PROYECTO: RavenMarket — Panel Super Admin | RavenTechs
   CHANGELOG:
+  - v0.5 (26/10/2026): BACKUP (no tenía): automático diario + manual + restaurar catálogo en la pestaña Tenant.
   - v0.2 (01/08/2026): Sección "Vincular usuario a empresa" en tab Empresas. Busca el
     usuario por email en Firestore, le asigna empresaId y rol empresa. Muestra usuarios
     vinculados por empresa con opción de desvincular. También muestra usuarios sin empresa.
@@ -234,6 +235,16 @@
       <div class="peso-row"><label>🏆 Boost destacada</label><input id="pBoost" type="number" min="0" max="30"></div>
       <div id="sumaPesos" style="font-size:13px;color:var(--c-suave);margin-bottom:12px"></div>
     </div>
+    <div class="cfg-seccion">
+      <h3>💾 Backup de datos</h3>
+      <p style="font-size:13px;color:var(--c-suave);margin-bottom:12px">Una copia de TODO el marketplace (tenant, categorías, empresas con sus productos, pedidos y usuarios). Se baja sola una vez por día al entrar; también podés bajarla cuando quieras. Restaurar devuelve el catálogo; los pedidos y usuarios están protegidos por las reglas de la base y no se reescriben.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn-principal" id="btnBkGen" style="padding:11px 16px;font-size:14px">📥 Descargar backup ahora</button>
+        <button class="btn-sec" id="btnBkRest" style="padding:11px 16px;font-size:14px">📤 Restaurar catálogo desde un archivo</button>
+        <input type="file" id="inputRestaurarBackup" accept=".json,application/json" style="display:none">
+      </div>
+      <p style="font-size:12px;margin-top:10px">Último backup: <span id="ultimoBackupFecha">—</span> · <span id="bkMsg"></span></p>
+    </div>
     <button class="btn-principal" id="btnGuardarTenant" style="width:100%">Guardar configuración</button>
   </div>
 
@@ -257,6 +268,7 @@
 /* ============ SUPER ADMIN v0.1 ============ */
 (function () {
   var DATOS = null;
+  var usuario = null;         // v0.5: antes se creaba solo al ingresar con el popup y fallaba con la sesión ya abierta
   var todosLosPedidos = [];   // consolidado de todos los listeners
   var escuchas = [];          // funciones para detener cada onSnapshot
   var pedidosPorEmpresa = {}; // empId → lista
@@ -304,6 +316,7 @@
   }
 
   function decidirPantalla(u) {
+    usuario = u;
     if (!u) { mostrar('pAcceso', true); mostrar('panel', false); mostrar('navInferior', false); return; }
     if (u.email !== RM_CONFIG.SUPER_ADMIN) {
       mostrar('pSinPermisos', true);
@@ -316,6 +329,7 @@
     iniciarEscuchas();
     pintarTenant();
     pintarSelectorEmpresas();
+    chequearBackupDiario();   // v0.5: backup automático diario
   }
 
   $('btnLogin').addEventListener('click', function () {
@@ -338,6 +352,130 @@
         });
     }
   });
+
+/* ══════════ BACKUP ESTÁNDAR 0.5 ══════════
+   Automático una vez por día al entrar el super admin (baja un JSON y deja copia en IndexedDB), manual y restaurar en la pestaña "Tenant".
+   Incluye TODO el marketplace: datos del tenant, categorías, empresas con sus productos, pedidos y usuarios.
+   Restaurar devuelve solo el catálogo (tenant, categorías, empresas y productos): los pedidos y los usuarios los protegen las reglas de la base
+   (un pedido solo lo crea su cliente; un usuario solo se crea a sí mismo), y quedan en el archivo por si hace falta recuperarlos con herramientas de servidor. */
+var BK_APP = 'CompraZona', BK_VER = '0.5', BK_LS = 'comprazona-ultimo-backup';
+var BK_COLS = ['categorias', 'empresas', 'pedidos', 'usuarios'];
+function _bkHoy() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function _bkSer(v) {
+  if (v && typeof v === 'object') {
+    if (typeof v.toMillis === 'function' && 'seconds' in v && 'nanoseconds' in v) return { __ts: [v.seconds, v.nanoseconds] };
+    if (Array.isArray(v)) return v.map(_bkSer);
+    const o = {}; Object.keys(v).forEach(k => { o[k] = _bkSer(v[k]); }); return o;
+  }
+  return v;
+}
+function _bkRev(v) {
+  if (v && typeof v === 'object') {
+    if (Array.isArray(v)) return v.map(_bkRev);
+    if (Array.isArray(v.__ts) && v.__ts.length === 2) return new firebase.firestore.Timestamp(v.__ts[0], v.__ts[1]);
+    const o = {}; Object.keys(v).forEach(k => { o[k] = _bkRev(v[k]); }); return o;
+  }
+  return v;
+}
+async function _bkLeer(ref) {
+  const s = await ref.get();
+  return s.docs.map(d => Object.assign({ _id: d.id }, _bkSer(d.data())));
+}
+function _bkIdb(fecha, json) {
+  return new Promise(function (res) {
+    try {
+      const rq = indexedDB.open('comprazona-backup', 1);
+      rq.onupgradeneeded = function () { rq.result.createObjectStore('b', { keyPath: 'fecha' }); };
+      rq.onsuccess = function () {
+        const idb = rq.result, tx = idb.transaction('b', 'readwrite'), st = tx.objectStore('b');
+        st.put({ fecha: fecha, json: json });
+        st.getAllKeys().onsuccess = function (e) { const ks = e.target.result.sort(); while (ks.length > 7) st.delete(ks.shift()); };
+        tx.oncomplete = function () { idb.close(); res(true); };
+        tx.onerror = tx.onabort = function () { idb.close(); res(false); };
+      };
+      rq.onerror = function () { res(false); };
+    } catch (e) { res(false); }
+  });
+}
+function _bkDescargar(json, fecha) {
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'comprazona-backup-' + fecha + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+}
+
+function _bkMsg(m, err) { var el = $('bkMsg'); if (el) { el.textContent = m; el.style.color = err ? '#b91c1c' : '#15803d'; } if (err) console.warn(m); }
+function _bkDb() { var f = RM._internos.fb(); return f && f.db; }
+function _bkPuede() {
+  var f = RM._internos.fb(); var u = f && f.auth && f.auth.currentUser;
+  return !!(u && u.email === RM_CONFIG.SUPER_ADMIN && _bkDb());
+}
+async function _bkCommit(ops) {
+  var db = _bkDb();
+  for (var i = 0; i < ops.length; i += 400) {
+    var batch = db.batch();
+    ops.slice(i, i + 400).forEach(function (o) { batch.set(o[0], o[1], { merge: true }); });
+    await batch.commit();
+  }
+}
+async function generarBackup(silencioso) {
+  if (!_bkPuede()) { if (!silencioso) _bkMsg('Solo el super admin puede hacer el backup', true); return; }
+  try {
+    if (!silencioso) _bkMsg('Preparando backup…');
+    var db = _bkDb(), tid = RM._internos.tenantIdActual(), tref = db.collection('tenants').doc(tid);
+    var ts = await tref.get();
+    var datos = {};
+    for (var i = 0; i < BK_COLS.length; i++) datos[BK_COLS[i]] = await _bkLeer(tref.collection(BK_COLS[i]));
+    for (var j = 0; j < datos.empresas.length; j++) datos.empresas[j]._productos = await _bkLeer(tref.collection('empresas').doc(datos.empresas[j]._id).collection('productos'));
+    var fecha = _bkHoy();
+    var json = JSON.stringify({ app: BK_APP, version: BK_VER, fecha: new Date().toISOString(), tenantId: tid, tenant: ts.exists ? _bkSer(ts.data()) : {}, datos: datos });
+    _bkDescargar(json, fecha);
+    await _bkIdb(fecha, json);
+    try { localStorage.setItem(BK_LS, fecha); } catch (e) {}
+    var el = $('ultimoBackupFecha'); if (el) el.textContent = fecha;
+    if (!silencioso) _bkMsg('✅ Backup descargado');
+  } catch (e) { console.warn('generarBackup', e); if (!silencioso) _bkMsg('Error al generar backup: ' + (e.code || e.message), true); }
+}
+async function restaurarBackup(input) {
+  var file = input.files && input.files[0];
+  if (!file) return;
+  try {
+    if (!_bkPuede()) { _bkMsg('Solo el super admin puede restaurar', true); return; }
+    var bk = JSON.parse(await file.text());
+    if (bk.app !== BK_APP || !bk.datos) { _bkMsg('El archivo no es un backup de CompraZona', true); return; }
+    var tid = RM._internos.tenantIdActual();
+    if (bk.tenantId !== tid) { _bkMsg('Este backup es de otro marketplace (' + bk.tenantId + ')', true); return; }
+    var tref = _bkDb().collection('tenants').doc(tid), ops = [];
+    ops.push([tref, _bkRev(bk.tenant || {})]);
+    (bk.datos.categorias || []).forEach(function (d) { var r = Object.assign({}, d), id = r._id; delete r._id; if (id) ops.push([tref.collection('categorias').doc(id), _bkRev(r)]); });
+    (bk.datos.empresas || []).forEach(function (e) {
+      var r = Object.assign({}, e), id = r._id, ps = r._productos || []; delete r._id; delete r._productos; if (!id) return;
+      ops.push([tref.collection('empresas').doc(id), _bkRev(r)]);
+      ps.forEach(function (p) { var y = Object.assign({}, p), pid = y._id; delete y._id; if (pid) ops.push([tref.collection('empresas').doc(id).collection('productos').doc(pid), _bkRev(y)]); });
+    });
+    if (!confirm('Se van a volver a cargar ' + ops.length + ' registros del catálogo (marketplace, categorías, empresas y productos). Los pedidos y usuarios NO se tocan. Lo que ya existe se reemplaza por lo del archivo. ¿Continuar?')) return;
+    _bkMsg('Restaurando…');
+    await _bkCommit(ops);
+    _bkMsg('✅ Catálogo restaurado (' + ops.length + ' registros)');
+    setTimeout(function () { location.reload(); }, 1500);
+  } catch (e) { console.warn('restaurarBackup', e); _bkMsg('Error al restaurar: ' + (e.code || e.message), true); }
+  finally { input.value = ''; }
+}
+function chequearBackupDiario() {
+  if (!_bkPuede()) return;
+  var ultimo = null; try { ultimo = localStorage.getItem(BK_LS); } catch (e) {}
+  var el = $('ultimoBackupFecha'); if (el && ultimo) el.textContent = ultimo;
+  if (ultimo !== _bkHoy()) setTimeout(function () { generarBackup(true); }, 8000);
+}
+$('btnBkGen').addEventListener('click', function () { generarBackup(false); });
+$('btnBkRest').addEventListener('click', function () { $('inputRestaurarBackup').click(); });
+$('inputRestaurarBackup').addEventListener('change', function () { restaurarBackup(this); });
+/* ══════════ FIN BACKUP ══════════ */
 
   /* ---------- Tabs ---------- */
   document.addEventListener('click', function (e) {
