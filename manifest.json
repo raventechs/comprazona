@@ -1,7 +1,7 @@
 {
   "name": "CompraZona",
   "short_name": "CompraZona",
-  "description": "Tu zona, tus productos. Ped\u00ed garrafas, agua y m\u00e1s cerca de tu casa.",
+  "description": "Tu zona, tus productos. Pedí garrafas, agua y más cerca de tu casa.",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
@@ -17,20 +17,26 @@
       "src": "/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "shortcuts": [
     {
       "name": "Pedir garrafas",
       "url": "/?cat=garrafas",
-      "description": "Ir directo al cat\u00e1logo de garrafas"
+      "description": "Ir directo al catálogo de garrafas"
     },
     {
       "name": "Mis pedidos",
