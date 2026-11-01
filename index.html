@@ -5,6 +5,7 @@
   FECHA: 01/08/2026
   PROYECTO: CompraZona — App Cliente | RavenTechs
   CHANGELOG:
+  - v1.2 (01/11/2026): Botón de ubicación refleja el permiso ya dado (queda 'Ubicación activa' y se recupera solo en visitas siguientes). Inicio con 'Tu último pedido' (repetir con un toque) y 'Cerca de vos' (empresas por cercanía).
   - v1.1 (02/08/2026): Ícono header fijo (carrito). Nav inferior mapa: scope global. Home rediseñado: botones de categoría grandes → subcategorías de producto → empresas filtradas. Sin cuadro de búsqueda.
   - v1.0 (02/08/2026): Estándar RavenTechs de Onboarding. Banner PWA propio con beforeinstallprompt. Pantalla de espera durante redirect Google. Pantalla de permisos unificada post-login.
   - v0.9 (02/08/2026): Mapa Leaflet con pines de empresas, distancia y acceso directo. PWA instalable (manifest + service worker). Ítem Mapa en nav inferior.
@@ -312,6 +313,7 @@
       <div class="seccion-titulo">¿Qué necesitás hoy?</div>
       <div class="cat-grid" id="catGrid"></div>
       <button class="btn-sec" id="btnUbicacion">📍 Activar mi ubicación</button>
+      <div id="inicioExtra"></div>
     </div>
     <!-- Subcategorías (productos) — aparece al tocar una categoría -->
     <div id="seccionSubcat" style="display:none">
@@ -472,6 +474,7 @@
     $('navInicio').classList.toggle('activo', vistaId !== 'vHistorial');
     $('navHistorial').classList.toggle('activo', vistaId === 'vHistorial');
     if (vistaId === 'vHistorial') pintarHistorial();
+    if (vistaId === 'vInicio') pintarInicioExtra();
     window.scrollTo(0, 0);
   }
   document.addEventListener('click', function (e) {
@@ -503,6 +506,8 @@
     // Logo: 📍 fijo (no se cambia por la categoría activa)
     pintarCategorias();
     // ubicación manejada por pantalla de permisos post-login
+    recuperarUbicacionSiYaConcedida();
+    pintarInicioExtra();
   });
 
   /* ══════════════════════════════════════════════════════════
@@ -553,6 +558,7 @@
       navigator.geolocation.getCurrentPosition(function (pos) {
         userGeo = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         activarPermiso('piUbicacion');
+        ubicacionActivada();
         pedirNotificaciones(btn);
       }, function () {
         pedirNotificaciones(btn);
@@ -647,6 +653,8 @@
     usuario = u;
     ocultarEspera(); // ocultar pantalla de espera si venía de Google
     pintarSesion();
+    ultimoPedidoUid = null;
+    pintarInicioExtra();
     // Primera vez logueado: mostrar pantalla de permisos
     if (u && !localStorage.getItem('rm_permisos_ok')) {
       mostrarPermisosPostLogin();
@@ -803,12 +811,103 @@
     $('btnUbicacion').textContent = '📍 Obteniendo ubicación…';
     navigator.geolocation.getCurrentPosition(function (pos) {
       userGeo = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      $('btnUbicacion').textContent = '✅ Ubicación activada — ordenamos por cercanía';
+      ubicacionActivada();
     }, function () {
       $('btnUbicacion').textContent = '📍 Activar mi ubicación';
       alert('No pudimos obtener tu ubicación.');
     });
   });
+
+  /* ---------- Estado de ubicación + extras del inicio (v1.2) ---------- */
+  function ubicacionActivada() {
+    if ($('btnUbicacion')) $('btnUbicacion').textContent = '✅ Ubicación activa — ordenamos por cercanía';
+    pintarInicioExtra();
+  }
+
+  // Si el permiso ya está concedido, lo toma solo (sin volver a preguntar)
+  function recuperarUbicacionSiYaConcedida() {
+    if (userGeo || !navigator.geolocation || !navigator.permissions || !navigator.permissions.query) return;
+    navigator.permissions.query({ name: 'geolocation' }).then(function (r) {
+      if (r.state !== 'granted') return;
+      navigator.geolocation.getCurrentPosition(function (pos) {
+        userGeo = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        ubicacionActivada();
+      }, function () {}, { timeout: 8000, maximumAge: 300000 });
+    }).catch(function () {});
+  }
+
+  var ultimoPedidoUid = null, ultimoPedidoCache = null;
+
+  function ultimoPedidoHTML(p) {
+    var items = p.items.map(function (it) { return it.cant + 'x ' + RM.sanitizar(it.nombre); }).join(', ');
+    return '<div class="seccion-titulo" style="margin-top:22px">Tu último pedido</div>' +
+      '<div class="ped-card"><div class="ped-top"><span>#' + RM.sanitizar(String(p.codigo)) + '</span><span>' + RM.sanitizar(p.fechaTexto || '') + '</span></div>' +
+      '<div class="ped-emp">' + RM.sanitizar(p.empresaNombre) + '</div>' +
+      '<div class="ped-items">' + items + '</div>' +
+      '<div class="ped-total">' + RM.formatPesos(p.total) + '</div>' +
+      '<button class="btn-sec" id="btnRepetirUltimo">🔁 Repetir este pedido</button></div>';
+  }
+
+  function cercanasHTML() {
+    var lista = DATOS.empresas.map(function (e) {
+      return { emp: e, dist: (userGeo && e.geo) ? RM.distanciaKm(userGeo, e.geo) : null, abierta: RM.estaAbierta(e) };
+    });
+    if (!lista.length) return '';
+    lista.sort(function (a, b) {
+      if (a.abierta !== b.abierta) return a.abierta ? -1 : 1;
+      if (a.dist !== null && b.dist !== null) return a.dist - b.dist;
+      return (b.emp.ratingProm || 0) - (a.emp.ratingProm || 0);
+    });
+    var html = '<div class="seccion-titulo" style="margin-top:22px">' + (userGeo ? 'Cerca de vos' : 'Empresas destacadas') + '</div>';
+    lista.slice(0, 3).forEach(function (r) {
+      var datos = [];
+      datos.push('⏱ ' + r.emp.tiempoEstimadoMin + ' min aprox');
+      datos.push('★ ' + (r.emp.ratingProm || 0).toFixed(1));
+      if (r.dist !== null) datos.push('📍 ' + r.dist.toFixed(1) + ' km');
+      html += '<button class="emp-card" data-cerca="' + RM.sanitizar(r.emp.id) + '">' +
+        '<div class="emp-top"><div><div class="emp-nombre">' + RM.sanitizar(r.emp.nombre) + '</div>' +
+        '<div class="emp-dir">' + RM.sanitizar(r.emp.direccion || '') + '</div></div>' +
+        '<span class="emp-estado ' + (r.abierta ? 'abierta">Abierto' : 'cerrada">Cerrado') + '</span></div>' +
+        '<div class="emp-datos">' + datos.join(' · ') + '</div></button>';
+    });
+    return html;
+  }
+
+  function pintarInicioExtra() {
+    var cont = $('inicioExtra');
+    if (!cont || !DATOS) return;
+    var ultimo = null;
+
+    function dibujar() {
+      var html = '';
+      if (ultimo && ultimo.items && ultimo.items.length) html += ultimoPedidoHTML(ultimo);
+      html += cercanasHTML();
+      cont.innerHTML = html;
+      var rep = $('btnRepetirUltimo');
+      if (rep) rep.addEventListener('click', function () { recomprar(ultimo); });
+      var cards = cont.querySelectorAll('[data-cerca]');
+      for (var i = 0; i < cards.length; i++) {
+        cards[i].addEventListener('click', function () { abrirEmpresa(this.getAttribute('data-cerca')); });
+      }
+    }
+
+    if (!esModoNube()) {
+      ultimo = (JSON.parse(localStorage.getItem('rm_historial') || '[]'))[0] || null;
+      dibujar();
+    } else if (usuario) {
+      if (ultimoPedidoUid === usuario.uid) { ultimo = ultimoPedidoCache; dibujar(); return; }
+      dibujar(); // primero lo que ya se sabe; el pedido aparece al llegar
+      RM.misPedidos(usuario.uid, function (e, lista) {
+        if (e) return;
+        ultimoPedidoUid = usuario.uid;
+        ultimoPedidoCache = lista[0] || null;
+        ultimo = ultimoPedidoCache;
+        dibujar();
+      });
+    } else {
+      dibujar();
+    }
+  }
 
   /* ---------- Lista de empresas rankeadas ---------- */
   function abrirCategoria(catId) {
@@ -1032,6 +1131,7 @@
     if (esModoNube()) {
       RM.crearPedido(pedido, function (e) {
         if (e) { alert('No se pudo registrar el pedido: ' + e); $('btnEnviar').disabled = false; return; }
+        ultimoPedidoUid = null;
         terminar();
       });
     } else {
