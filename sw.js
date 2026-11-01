@@ -7,7 +7,7 @@
   - v0.1 (02/08/2026): Cache básico del shell de la app (HTML, CSS, JS, fuentes, Leaflet).
     Network-first para Firebase. Funciona offline mostrando el catálogo cacheado.
 */
-var CACHE = 'comprazona-v2';
+var CACHE = 'comprazona-v3';
 var SHELL = [
   '/',
   '/index.html',
@@ -55,7 +55,7 @@ self.addEventListener('fetch', function (e) {
         return res;
       }).catch(function() { return cached; });
       // Para el shell: cache primero; para el resto: red primero con fallback a cache
-      return url.indexOf('comprazona.raventechsapp.com') !== -1 ? (cached || network) : network;
+      return network.then(function (r) { return r || cached; }); // red primero: siempre la versión nueva, con respaldo offline
     })
   );
 });

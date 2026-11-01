@@ -193,12 +193,8 @@ var RM = (function () {
     }).catch(function (e) {
       var c = e && e.code;
       if (c === 'auth/popup-closed-by-user' || c === 'auth/cancelled-popup-request') { cb('cancelado'); return; }
-      if (c === 'auth/popup-blocked' || c === 'auth/operation-not-supported-in-this-environment') {
-        localStorage.setItem('rm_login_pending', '1');
-        firebase.auth().signInWithRedirect(provider);
-        return;
-      }
-      cb((e && e.message) || 'No se pudo ingresar');
+      // El redirect no se usa de respaldo: en este dominio no devuelve la sesión.
+      cb((c ? '(' + c + ') ' : '') + ((e && e.message) || 'No se pudo ingresar'));
     });
   }
 
