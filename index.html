@@ -632,7 +632,12 @@
   $('btnIrGoogle').addEventListener('click', function () {
     $('btnIrGoogle').textContent = 'Yendo a Google…';
     $('btnIrGoogle').disabled = true;
-    RM.login(function () {});
+    RM.login(function (err) {
+      $('btnIrGoogle').textContent = 'Ingresar con Google';
+      $('btnIrGoogle').disabled = false;
+      if (!err) { cerrarLoginGoogle(); return; }
+      if (err !== 'cancelado') alert('No se pudo ingresar: ' + err);
+    });
   });
 
   $('btnLoginCancelar').addEventListener('click', cerrarLoginGoogle);

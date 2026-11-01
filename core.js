@@ -183,13 +183,23 @@ var RM = (function () {
 
   function login(cb) {
     if (!initFirebase()) { cb('Firebase no disponible'); return; }
-    var provider = new firebase.auth.GoogleAuthProvider();
-    // Redirect en lugar de popup: más natural en móvil, no hay ventana emergente.
-    // El usuario va a Google, elige su cuenta y vuelve solo a la app.
-    // getRedirectResult() en initFirebase captura el resultado al volver.
-    localStorage.setItem('rm_login_pending', '1');
-    firebase.auth().signInWithRedirect(provider);
-    // cb nunca se llama acá — el flujo sigue en onAuth tras el redirect
+    var provider = (window.rtProv || function (p) { return p; })(new firebase.auth.GoogleAuthProvider());
+    // Popup primero: el redirect de Firebase pierde la sesión en Chrome moderno cuando la
+    // app corre en un dominio propio (el resultado nunca vuelve). Si el navegador bloquea
+    // el popup, se usa redirect como último recurso.
+    fb.auth.signInWithPopup(provider).then(function (res) {
+      if (res && res.user) asegurarPerfil(res.user, function () {});
+      cb(null);
+    }).catch(function (e) {
+      var c = e && e.code;
+      if (c === 'auth/popup-closed-by-user' || c === 'auth/cancelled-popup-request') { cb('cancelado'); return; }
+      if (c === 'auth/popup-blocked' || c === 'auth/operation-not-supported-in-this-environment') {
+        localStorage.setItem('rm_login_pending', '1');
+        firebase.auth().signInWithRedirect(provider);
+        return;
+      }
+      cb((e && e.message) || 'No se pudo ingresar');
+    });
   }
 
   function _procesarRedirect() {
