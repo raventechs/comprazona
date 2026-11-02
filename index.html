@@ -5,6 +5,7 @@
   FECHA: 01/08/2026
   PROYECTO: CompraZona — App Cliente | RavenTechs
   CHANGELOG:
+  - v1.3 (01/11/2026): menú admin oculto: 5 toques al nombre CompraZona abren el panel (admin.html) solo con la cuenta admin.
   - v1.2 (01/11/2026): Botón de ubicación refleja el permiso ya dado (queda 'Ubicación activa' y se recupera solo en visitas siguientes). Inicio con 'Tu último pedido' (repetir con un toque) y 'Cerca de vos' (empresas por cercanía).
   - v1.1 (02/08/2026): Ícono header fijo (carrito). Nav inferior mapa: scope global. Home rediseñado: botones de categoría grandes → subcategorías de producto → empresas filtradas. Sin cuadro de búsqueda.
   - v1.0 (02/08/2026): Estándar RavenTechs de Onboarding. Banner PWA propio con beforeinstallprompt. Pantalla de espera durante redirect Google. Pantalla de permisos unificada post-login.
@@ -659,6 +660,19 @@
     if (u && !localStorage.getItem('rm_permisos_ok')) {
       mostrarPermisosPostLogin();
     }
+  });
+
+  /* ---------- Menú admin oculto: 5 toques al nombre abre el panel, solo con la cuenta admin ---------- */
+  var tapsLogo = 0, tapsTimer = null;
+  $('brandNombre').addEventListener('click', function () {
+    tapsLogo++; clearTimeout(tapsTimer);
+    if (tapsLogo >= 5) {
+      tapsLogo = 0;
+      var adm = usuario && usuario.email && String(usuario.email).toLowerCase() === String(RM_CONFIG.SUPER_ADMIN || 'rgaraventa@gmail.com').toLowerCase();
+      if (adm) location.href = '/admin.html';
+      return;
+    }
+    tapsTimer = setTimeout(function () { tapsLogo = 0; }, 2000);
   });
 
   function pintarSesion() {
