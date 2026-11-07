@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <!--
   ARCHIVO: empresa.html
-  VERSIÓN: v0.6
+  VERSIÓN: v0.7
   FECHA: 01/08/2026
   PROYECTO: CompraZona — Panel Empresa | RavenTechs
   CHANGELOG:
+  - v0.7 (07/11/2026): botón «❓ Instructivo» debajo del encabezado (abre /ayuda/). Solo agrega un enlace, no toca datos.
   - v0.6 (01/08/2026): Empresas solo pueden cambiar precios (no agregar productos — eso
     es onboarding). Modal de confirmación antes de guardar un precio nuevo. FAB y botón
     editar ocultos para rol empresa; solo el super admin puede agregar/editar productos.
@@ -224,6 +225,7 @@
   <div class="selector-emp" id="cajaSelector" style="display:none">
     <select id="selEmpresa" aria-label="Elegir empresa"></select>
   </div>
+<a href="ayuda/" target="_blank" rel="noopener" style="display:block;text-align:right;padding:2px 14px 8px;font-size:12px;font-weight:700;color:#1B5E20;text-decoration:underline">❓ Instructivo</a>
 </header>
 
 <!-- Pantalla de espera redirect -->
