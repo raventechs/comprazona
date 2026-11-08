@@ -783,6 +783,7 @@ $('inputRestaurarBackup').addEventListener('change', function () { restaurarBack
         '<button class="mini-btn" data-toggle-emp="' + e.id + '">' + (e.activa ? 'Desactivar' : 'Activar') + '</button>' +
         '<button class="mini-btn" data-toggle-dest="' + e.id + '">' + (e.destacada ? 'Quitar destacada' : '⭐ Destacar') + '</button>' +
         '<button class="mini-btn" data-cambiar-plan="' + e.id + '">Cambiar plan</button>' +
+        '<button class="mini-btn" data-plus-stats="' + e.id + '">' + (e.plusStats ? 'Quitar plus Ventas' : '⭐ Activar plus Ventas') + '</button>' +
         (RM.pruebaEstado(e)
           ? '<button class="mini-btn" data-prueba="activar" data-pe="' + e.id + '">✅ Activar cliente</button><button class="mini-btn" data-prueba="mas" data-pe="' + e.id + '">+7 días</button>'
           : (e.demoHasta === undefined ? '<button class="mini-btn" data-prueba="iniciar" data-pe="' + e.id + '">⏳ Iniciar prueba 14 días</button>' : '')) +
@@ -792,6 +793,18 @@ $('inputRestaurarBackup').addEventListener('change', function () { restaurarBack
   }
 
   document.addEventListener('click', function (e) {
+    var ps = e.target.closest('[data-plus-stats]');
+    if (ps) {
+      var pid = ps.getAttribute('data-plus-stats');
+      var pe = (DATOS.empresas || []).filter(function (x) { return x.id === pid; })[0];
+      if (!pe) return;
+      var nuevo = !pe.plusStats;
+      RM.guardarEmpresa(pid, { plusStats: nuevo }, function (err) {
+        if (err) { alert('Error: ' + err); return; }
+        pe.plusStats = nuevo; pintarEmpresas(DATOS.empresas); toast();
+      });
+      return;
+    }
     var te = e.target.closest('[data-toggle-emp]');
     var td = e.target.closest('[data-toggle-dest]');
     var cp = e.target.closest('[data-cambiar-plan]');

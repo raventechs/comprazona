@@ -7,7 +7,7 @@
   - v0.1 (02/08/2026): Cache básico del shell de la app (HTML, CSS, JS, fuentes, Leaflet).
     Network-first para Firebase. Funciona offline mostrando el catálogo cacheado.
 */
-var CACHE = 'comprazona-v6';
+var CACHE = 'comprazona-v7';
 var SHELL = [
   '/',
   '/index.html',

@@ -281,6 +281,11 @@ body.conPrueba{padding-bottom:150px}
     <div id="listaProdAdmin"></div>
   </div>
 
+  <div class="vista" id="tVentas">
+    <div class="seccion-titulo">⭐ Plus · Estadísticas de ventas</div>
+    <div id="ventasCont"></div>
+  </div>
+
   <div class="vista" id="tNegocio">
     <div class="seccion-titulo">Mi negocio</div>
     <div class="campo"><label for="cfgNombre">Nombre</label><input id="cfgNombre" type="text"></div>
@@ -346,6 +351,7 @@ body.conPrueba{padding-bottom:150px}
 <nav class="nav-inferior" id="navInferior" style="display:none">
   <button data-tab="tPedidos" class="activo"><span class="ni">📋</span>Pedidos <span id="badgePend"></span></button>
   <button data-tab="tProductos"><span class="ni">🏷️</span>Productos</button>
+  <button data-tab="tVentas"><span class="ni">📈</span>Ventas <span id="plusMark" style="font-size:10px"></span></button>
   <button data-tab="tNegocio"><span class="ni">⚙️</span>Mi negocio</button>
 </nav>
 
@@ -503,7 +509,50 @@ body.conPrueba{padding-bottom:150px}
     pintarPedidos();
   });
 
+  /* ---------- Plus: estadísticas de ventas ---------- */
+  function plusStatsOk() {
+    if (esAdmin) return true;
+    var d = empDatos;
+    if (!d) return false;
+    if (d.plusStats === true) return true;
+    if (d.demoHasta === undefined) return true;           // cliente anterior: sin cambios
+    var p = RM.pruebaEstado(d);
+    return !!(p && !p.vencida);                           // en prueba: incluido
+  }
+  function pintarVentas() {
+    var c = $('ventasCont'); if (!c) return;
+    var mk = $('plusMark');
+    if (mk) mk.textContent = (empDatos && empDatos.plusStats !== true && !esAdmin && empDatos.demoHasta !== undefined) ? '⭐' : '';
+    if (!plusStatsOk()) {
+      var msg = 'Hola, quiero sumar las Estadísticas de ventas a ' + (empDatos ? empDatos.nombre : 'mi negocio') + ' en CompraZona.';
+      c.innerHTML = '<div class="hint">Mirá cuánto vendés por día, por semana y por mes, tus productos más pedidos y tu ticket promedio.</div>' +
+        '<a class="btn-principal" style="display:block;text-align:center;text-decoration:none" target="_blank" rel="noopener" href="' +
+        RM.waLink(RM.WA_RAVEN, msg) + '">Quiero este plus</a>';
+      return;
+    }
+    var hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+    var t0 = hoy.getTime(), DIA = 86400000;
+    var ok = pedidos.filter(function (p) { return p.estado === 'entregado'; });
+    function sum(desde) {
+      var n = 0, t = 0;
+      ok.forEach(function (p) { if (p.ts >= desde) { n++; t += Number(p.total) || 0; } });
+      return { n: n, t: t };
+    }
+    var h = sum(t0), s7 = sum(t0 - 6 * DIA), s30 = sum(t0 - 29 * DIA);
+    var cnt = {};
+    ok.forEach(function (p) { if (p.ts >= t0 - 29 * DIA) (p.items || []).forEach(function (it) {
+      var k = String(it.nombre); cnt[k] = (cnt[k] || 0) + (Number(it.cant) || 0); }); });
+    var top = Object.keys(cnt).sort(function (a, b) { return cnt[b] - cnt[a]; }).slice(0, 5);
+    function fila(l, o) { return '<div class="prod-admin"><span>' + l + '</span><b>' + RM.formatPesos(o.t) + ' <span style="font-weight:500;opacity:.7">(' + o.n + ' ped.)</span></b></div>'; }
+    c.innerHTML = '<div class="hint">Se cuentan los pedidos entregados.</div>' +
+      fila('Hoy', h) + fila('Últimos 7 días', s7) + fila('Últimos 30 días', s30) +
+      '<div class="prod-admin"><span>Ticket promedio (30 d)</span><b>' + RM.formatPesos(s30.n ? Math.round(s30.t / s30.n) : 0) + '</b></div>' +
+      '<div class="seccion-titulo" style="margin-top:16px">Más pedidos (30 días)</div>' +
+      (top.length ? top.map(function (k, i) { return '<div class="prod-admin"><span>' + (i + 1) + '. ' + RM.sanitizar(k) + '</span><b>' + cnt[k] + '</b></div>'; }).join('') : '<div class="vacio">Todavía no hay pedidos entregados.</div>');
+  }
+
   function pintarPedidos() {
+    try { pintarVentas(); } catch (_) {}
     var pend = pedidos.filter(function (p) { return ['enviado', 'recibido', 'encamino'].indexOf(p.estado) !== -1; }).length;
     $('badgePend').textContent = pend ? '(' + pend + ')' : '';
     var lista = pedidos.filter(function (p) {
@@ -574,6 +623,7 @@ body.conPrueba{padding-bottom:150px}
     var navs = document.querySelectorAll('[data-tab]');
     for (var j = 0; j < navs.length; j++) navs[j].classList.remove('activo');
     t.classList.add('activo');
+    if (t.getAttribute('data-tab') === 'tVentas') { try { pintarVentas(); } catch (_) {} }
     $('fabAgregar').style.display = (t.getAttribute('data-tab') === 'tProductos') ? 'block' : 'none';
     window.scrollTo(0, 0);
   });
