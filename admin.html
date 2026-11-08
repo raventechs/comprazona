@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <!--
   ARCHIVO: admin.html
-  VERSIÓN: v0.5
-  FECHA: 26/10/2026
+  VERSIÓN: v0.6
+  FECHA: 08/11/2026
   PROYECTO: RavenMarket — Panel Super Admin | RavenTechs
   CHANGELOG:
+  - v0.6 (08/11/2026): PRUEBA DE 14 DÍAS por empresa (sin bloqueo): en cada empresa, botones «Iniciar prueba 14 días» (si no tiene), «✅ Activar cliente» y «+7 días», con etiqueta de estado. No toca datos ni reglas.
   - v0.5 (26/10/2026): BACKUP (no tenía): automático diario + manual + restaurar catálogo en la pestaña Tenant.
   - v0.2 (01/08/2026): Sección "Vincular usuario a empresa" en tab Empresas. Busca el
     usuario por email en Firestore, le asigna empresaId y rol empresa. Muestra usuarios
@@ -774,6 +775,7 @@ $('inputRestaurarBackup').addEventListener('change', function () { restaurarBack
         '<span class="tag-plan">📦 ' + (e.plan || 'sin plan') + '</span>' +
         '<span class="' + (e.activa ? 'tag-activa">✅ Activa' : 'tag-inactiva">🚫 Inactiva') + '</span>' +
         (e.destacada ? '<span class="tag-dest">⭐ Destacada</span>' : '') +
+        (function () { var p = RM.pruebaEstado(e); return p ? '<span class="tag-plan" style="' + (p.vencida ? 'background:#c62828;color:#fff;border-color:#c62828' : 'background:#f59e0b;color:#2b1a00;border-color:#f59e0b') + '">' + (p.vencida ? '⏰ PRUEBA VENCIDA' : '⏳ PRUEBA · ' + p.dias + ' d') + '</span>' : ''; })() +
         '</div>' +
         '<div style="margin:10px 0 6px;font-size:12px;font-weight:800;color:var(--c-suave)">USUARIOS VINCULADOS</div>' +
         usrsHtml +
@@ -781,6 +783,9 @@ $('inputRestaurarBackup').addEventListener('change', function () { restaurarBack
         '<button class="mini-btn" data-toggle-emp="' + e.id + '">' + (e.activa ? 'Desactivar' : 'Activar') + '</button>' +
         '<button class="mini-btn" data-toggle-dest="' + e.id + '">' + (e.destacada ? 'Quitar destacada' : '⭐ Destacar') + '</button>' +
         '<button class="mini-btn" data-cambiar-plan="' + e.id + '">Cambiar plan</button>' +
+        (RM.pruebaEstado(e)
+          ? '<button class="mini-btn" data-prueba="activar" data-pe="' + e.id + '">✅ Activar cliente</button><button class="mini-btn" data-prueba="mas" data-pe="' + e.id + '">+7 días</button>'
+          : (e.demoHasta === undefined ? '<button class="mini-btn" data-prueba="iniciar" data-pe="' + e.id + '">⏳ Iniciar prueba 14 días</button>' : '')) +
         '</div></div>';
     });
     $('listaEmpresas').innerHTML = html || '<div class="vacio">No hay empresas cargadas.</div>';
@@ -836,6 +841,25 @@ $('inputRestaurarBackup').addEventListener('change', function () { restaurarBack
         alert('Plan inválido. Usá: ' + planes.join(', '));
       }
     }
+  });
+
+  /* ---------- Prueba de 14 días por empresa ---------- */
+  document.addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-prueba]');
+    if (!b) return;
+    var empId = b.getAttribute('data-pe'), acc = b.getAttribute('data-prueba'), emp = null;
+    DATOS.empresas.forEach(function (x) { if (x.id === empId) emp = x; });
+    if (!emp) return;
+    var nuevo;
+    if (acc === 'activar') nuevo = null;
+    else if (acc === 'iniciar') nuevo = Date.now() + 14 * 86400000;
+    else nuevo = Math.max(Date.now(), Number(emp.demoHasta) || 0) + 7 * 86400000;
+    var antes = emp.demoHasta;
+    emp.demoHasta = nuevo;
+    RM.guardarEmpresa(empId, { demoHasta: nuevo }, function (err) {
+      if (err) { emp.demoHasta = antes; alert('Error: ' + err); return; }
+      pintarEmpresas(DATOS.empresas); toast();
+    });
   });
 
   /* ---------- Tenant ---------- */

@@ -1,9 +1,10 @@
 /*
   ARCHIVO: core.js
-  VERSIÓN: v0.5
-  FECHA: 01/08/2026
+  VERSIÓN: v0.6
+  FECHA: 08/11/2026
   PROYECTO: CompraZona — Motor de Marketplaces Locales | RavenTechs
   CHANGELOG:
+  - v0.6 (08/11/2026): prueba de 14 días sin bloqueo por empresa: RM.pruebaEstado(empresa) lee el campo demoHasta (milisegundos). No toca datos.
   - v0.5 (01/08/2026): SEGURIDAD — sanitizar() anti-XSS, App Check reCAPTCHA v3,
     campo APPCHECK_KEY en config, validación campo email_verified en reglas Firestore.
   - v0.4: renombrado CompraZona. v0.3: login redirect. v0.2: Firebase. v0.1: demo.
@@ -475,6 +476,14 @@ var RM = (function () {
       .catch(function (e) { cb(e.message); });
   }
 
+  /* ---- Prueba de 14 días por empresa (no bloquea nada) ---- */
+  function pruebaEstado(emp) {
+    if (!emp || !emp.demoHasta) return null;
+    var ms = Number(emp.demoHasta); if (!ms) return null;
+    var d = Math.ceil((ms - Date.now()) / 86400000);
+    return d > 0 ? { vencida: false, dias: d } : { vencida: true, dias: 0 };
+  }
+
   function guardarProducto(empresaId, prod, cb) {
     var col = tRef().collection('empresas').doc(empresaId).collection('productos');
     var id = prod.id;
@@ -543,6 +552,8 @@ var RM = (function () {
     leerEmpresaFresca: leerEmpresaFresca,
     mensajeWhatsApp: mensajeWhatsApp,
     waLink: waLink,
+    pruebaEstado: pruebaEstado,
+    WA_RAVEN: '5491136547592',
     _internos: { tenantIdActual: function () { return tenantId; }, fb: function () { return fb; } }
   };
 })();

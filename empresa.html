@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <!--
   ARCHIVO: empresa.html
-  VERSIÓN: v0.7
-  FECHA: 01/08/2026
+  VERSIÓN: v0.8
+  FECHA: 08/11/2026
   PROYECTO: CompraZona — Panel Empresa | RavenTechs
   CHANGELOG:
+  - v0.8 (08/11/2026): PRUEBA DE 14 DÍAS SIN BLOQUEO. Si la empresa tiene demoHasta: cartel ámbar con los días restantes y, al vencer, cartel rojo titilante fijo que no se puede cerrar con botón para activar por WhatsApp. El panel sigue funcionando. Las empresas sin demoHasta no ven nada. No toca datos ni reglas.
   - v0.7 (07/11/2026): botón «❓ Instructivo» debajo del encabezado (abre /ayuda/). Solo agrega un enlace, no toca datos.
   - v0.6 (01/08/2026): Empresas solo pueden cambiar precios (no agregar productos — eso
     es onboarding). Modal de confirmación antes de guardar un precio nuevo. FAB y botón
@@ -81,6 +82,15 @@
 .dia-chk label:has(input:checked){border-color:var(--c-primario);background:#FFF2E3;color:var(--c-primario)}
 .guardado{position:fixed;left:50%;transform:translateX(-50%);bottom:130px;background:#26221D;color:#fff;font-size:13px;font-weight:700;padding:9px 16px;border-radius:20px;z-index:50;display:none}
 .hint{font-size:12.5px;color:var(--c-suave);margin:2px 0 14px}
+
+/* Prueba de 14 días sin bloqueo: cartel fijo */
+.barPrueba{position:fixed;left:8px;right:8px;bottom:calc(70px + env(safe-area-inset-bottom));z-index:40;border-radius:14px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;font-weight:800;font-size:15px;box-shadow:0 4px 20px rgba(0,0,0,.5)}
+.barPrueba a{background:#fff;color:#7f1d1d;border-radius:10px;padding:10px 14px;font-weight:800;font-size:14px;text-decoration:none;white-space:nowrap}
+.barPrueba.curso{background:#f59e0b;color:#2b1a00;font-size:14px;padding:9px 12px}.barPrueba.curso a{color:#2b1a00;border:1px solid #2b1a00}
+.barPrueba.venc{background:#c62828;color:#fff;border:2px solid #fff;animation:blinkPrueba 1s infinite}
+@keyframes blinkPrueba{0%,100%{background:#c62828;opacity:1}50%{background:#7f1d1d;opacity:.8}}
+@media (prefers-reduced-motion:reduce){.barPrueba.venc{animation:none}}
+body.conPrueba{padding-bottom:150px}
 </style>
 <script id="rt-pwa-v2">
 /* RavenTechs · Cartel "Instalar la app" v2 — Android/Chrome (botón Instalar) + iPhone/Safari (instrucciones). Se oculta si la app ya está instalada. */
@@ -448,12 +458,28 @@
       if (e) { alert('Error: ' + e); return; }
       empDatos = emp;
       productos = prods;
+      pintarPrueba();
       $('brandNombre').textContent = emp.nombre;
       mostrar('panel', true); mostrar('navInferior', true); mostrar('pSinEmpresa', false);
       pintarProductos();
       pintarConfig();
       escucharPedidos();
     });
+  }
+
+  /* ---------- Prueba de 14 días (sin bloqueo) ---------- */
+  function pintarPrueba() {
+    var b = document.getElementById('barPrueba');
+    var est = (!esAdmin && empDatos) ? RM.pruebaEstado(empDatos) : null;
+    if (!est) { if (b) b.parentNode.removeChild(b); document.body.classList.remove('conPrueba'); return; }
+    if (!b) { b = document.createElement('div'); b.id = 'barPrueba'; document.body.appendChild(b); }
+    document.body.classList.add('conPrueba');
+    var msg = encodeURIComponent('Hola, quiero activar CompraZona para mi negocio (' + (empDatos.nombre || '') + ').');
+    b.className = 'barPrueba ' + (est.vencida ? 'venc' : 'curso');
+    b.innerHTML = '<span>' + (est.vencida
+      ? '⚠️ Terminó tu prueba gratis. Activá CompraZona para seguir sin esta alerta.'
+      : 'Prueba gratis: te ' + (est.dias === 1 ? 'queda 1 día' : 'quedan ' + est.dias + ' días')) +
+      '</span><a href="https://wa.me/' + RM.WA_RAVEN + '?text=' + msg + '" target="_blank" rel="noopener">Activar</a>';
   }
 
   /* ---------- Pedidos en vivo ---------- */
